@@ -1,0 +1,5 @@
+syntax: glob
+.spyderworkspace
+*.pyc
+*.egg-info/*
+
