@@ -1,37 +1,28 @@
+import os
+import numpy as np
 import hyperspy.api as hs
 
-from gpa.utils import get_atomic_resolution_tem_signal2d
+import gpa.api as gpa
 
-s = get_atomic_resolution_tem_signal2d(1024, 1024, rotation_angle=15) * 1E4
+s = gpa.datasets.get_atomic_resolution_tem_signal2d(
+    1024, 1024, rotation_angle=15) * 1E4
 s.add_gaussian_noise(40)
 
 s.set_signal_type('atomic_resolution')
 
+gp_analysis = gpa.GeometricalPhaseAnalysis(s)
+gp_analysis.set_fft(True)
+gp_analysis.plot_fft(True)
 
-s.plot()
-fft = s.fft(True, apodization=True)
 
-fft.plot(True)
+gp_analysis.add_rois([[4.3010, -1.1947, 1.5], [1.19474, 4.3010, 1.5]])
 
-# Add the rois
-roi_g1 = hs.roi.CircleROI(6.45161, -1.75229, 2.0)
-roi_g1.interactive(fft, color='C0')
+gp_analysis.calculate_phase()
 
-roi_g2 = hs.roi.CircleROI(-1.67264, -6.45161, 2.0)
-roi_g2.interactive(fft, color='C1')
+gp_analysis.plot_phase()
 
-# Get phase image
-phase_g1 = fft.get_phase_from_roi(roi_g1, centre=True)
-phase_g2 = fft.get_phase_from_roi(roi_g2, centre=True)
+gp_analysis.refine_phase()
 
-# Refine phase image g1
-phase_g1.plot()
-phase_g1.add_refinement_roi()
+gp_analysis.calculate_strain()
 
-phase_g1.refine_phase(fft, roi_g1)
-phase_g1.unwrap()
-
-phase_g2.plot()
-phase_g2.add_refinement_roi()
-phase_g2.refine_phase(fft, roi_g2)
-phase_g2.unwrap()
+gp_analysis.plot_strain(components='e_xx')
