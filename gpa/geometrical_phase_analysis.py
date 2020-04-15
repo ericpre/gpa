@@ -9,6 +9,8 @@ from gpa.utils import relative2value
 # TODO
 # - check two g are perpendicular, if not do something about it
 # - speeding up phase calculation
+# - add median filter to the strain maps?
+# - look at the
 # - sync radius ROI
 # - add support for no perpendicular g
 # - crop fft?
@@ -219,42 +221,48 @@ class GeometricalPhaseAnalysis:
         e_xx, e_xy = e[0, 0].reshape(shape), e[0, 1].reshape(shape)
         e_yx, e_yy = e[1, 0].reshape(shape), e[1, 1].reshape(shape)
 
-        self.e_xx = hs.signals.Signal2D(e_xx)
+        axes_list = list(self.signal.axes_manager.as_dictionary().values())
+        self.e_xx = hs.signals.Signal2D(e_xx, axes=axes_list)
         self.e_xx.metadata.General.title = "$\epsilon_{xx}$"
         self.e_xx.metadata.Signal.quantity = "$\epsilon_{xx}$ (%)"
 
-        self.e_yy = hs.signals.Signal2D(e_yy)
+        self.e_yy = hs.signals.Signal2D(e_yy, axes=axes_list)
         self.e_yy.metadata.General.title = "$\epsilon_{yy}$"
         self.e_yy.metadata.Signal.quantity = "$\epsilon_{yy}$ (%)"
 
-        self.e_xy = hs.signals.Signal2D(e_xy)
+        self.e_xy = hs.signals.Signal2D(e_xy, axes=axes_list)
         self.e_xy.metadata.General.title = "$\epsilon_{xy}$"
         self.e_xy.metadata.Signal.quantity = "$\epsilon_{xy}$ (%)"
 
-        self.e_yx = hs.signals.Signal2D(e_yx)
+        self.e_yx = hs.signals.Signal2D(e_yx, axes=axes_list)
         self.e_yx.metadata.General.title = "$\epsilon_{yx}$"
         self.e_yx.metadata.Signal.quantity = "$\epsilon_{yx}$ (%)"
 
-        self.theta = hs.signals.Signal2D(0.5*(e_xy + e_yx))
+        self.theta = hs.signals.Signal2D(0.5*(e_xy + e_yx), axes=axes_list)
         self.theta.metadata.General.title = "$\theta$"
         self.theta.metadata.Signal.quantity = "$\theta$ (%)"
 
-        self.omega = hs.signals.Signal2D(0.5*(e_xy - e_yx))
+        self.omega = hs.signals.Signal2D(0.5*(e_xy - e_yx), axes=axes_list)
         self.omega.metadata.General.title = "$\omega$"
         self.omega.metadata.Signal.quantity = "$\omega$ (%)"
 
     def plot_strain(self, components='all', same_figure=True, **kwargs):
-        if 'cmap' not in kwargs.keys():
-            kwargs['cmap'] = 'viridis'
+        # Set default value
+        for key, value in zip(['cmap', 'vmin', 'vmax'],
+                              ['viridis', -0.01, 0.01]):
+            if key not in kwargs.keys():
+                kwargs[key] = value
         if components == 'all':
-            components = ['e_xx', 'e_yy', 'e_xy', 'e_yx']
+            components = ['e_xx', 'e_yy', 'e_xy']
         elif isinstance(components, str):
             components = [components]
         if same_figure:
             signals = [getattr(self, component) for component in components]
-            hs.plot.plot_images(signals, cmap='viridis', vmin=-0.01, vmax=0.01,
-                                per_row=2, label='titles', colorbar='single',
-                                scalebar=[2], axes_decor=None)
+            fig = plt.figure(figsize=(12, 4.8))
+            hs.plot.plot_images(signals, per_row=3, label='titles',
+                                colorbar='single', scalebar=[0],
+                                axes_decor=None, fig=fig, **kwargs)
+            plt.tight_layout(rect=[0, 0, 0.9, 1])
         else:
             if 'e_xx' in components:
                 self.e_xx.plot(**kwargs)

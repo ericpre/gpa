@@ -23,6 +23,8 @@ gp_analysis.plot_phase()
 
 gp_analysis.refine_phase()
 
+gp_analysis.calculate_displacement()
 gp_analysis.calculate_strain()
 
-gp_analysis.plot_strain(components='e_xx')
+gp_analysis.plot_strain(components='all', same_figure=True,
+                        vmin=-0.01, vmax=0.01)
