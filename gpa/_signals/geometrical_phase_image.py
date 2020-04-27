@@ -1,4 +1,5 @@
 import numpy as np
+from scipy import ndimage
 from skimage.restoration import unwrap_phase
 from hyperspy._signals.signal2d import Signal2D
 from hyperspy.roi import BaseROI, RectangularROI
@@ -87,8 +88,13 @@ class GeometricalPhaseImage(Signal2D):
         else:
             return self._deepcopy_with_new_data(data)
 
-    def gradient(self, flatten=False):
+    def gradient(self, flatten=False, median_filter_size=0):
         """ Calculate the gradient of the phase
+
+        Parameters
+        ----------
+        median_filter_size : float, default is 5
+            Size of the median filter applied to the gradient of the phase map.
 
         Notes
         -----
@@ -96,10 +102,13 @@ class GeometricalPhaseImage(Signal2D):
         """
         x, y = np.exp(-1j*self.data) * np.gradient(np.exp(1j*self.data))
 
+        if median_filter_size >0:
+            x = ndimage.median_filter(np.imag(x), median_filter_size)
+            y = ndimage.median_filter(np.imag(y), median_filter_size)
         if flatten:
-            return np.array([np.imag(x).flatten(), np.imag(y).flatten()])
+            return np.array([x.flatten(), y.flatten()])
         else:
-            return np.array([np.imag(x), np.imag(y)])
+            return np.array([x, y])
 
     def _unwrap(self, data, normalise=True):
         data = unwrap_phase(data)

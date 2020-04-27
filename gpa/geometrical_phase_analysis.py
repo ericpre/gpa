@@ -198,9 +198,14 @@ class GeometricalPhaseAnalysis:
 
         return self.u_x, self.u_y
 
-    def calculate_strain(self):
+    def calculate_strain(self, median_filter_size=5):
         """
         Calculate the strain tensor from the phase image.
+
+        Parameters
+        ----------
+        median_filter_size : float, default is 5
+            Size of the median filter applied to the gradient of the phase map.
 
         Notes
         -----
@@ -208,8 +213,14 @@ class GeometricalPhaseAnalysis:
 
         """
         # Calculate the derivative the phase image
-        gradient_phase_g1 = self.phases['g1'].gradient(flatten=True)
-        gradient_phase_g2 = self.phases['g2'].gradient(flatten=True)
+        gradient_phase_g1 = self.phases['g1'].gradient(
+            flatten=True,
+            median_filter_size=median_filter_size
+            )
+        gradient_phase_g2 = self.phases['g2'].gradient(
+            flatten=True,
+            median_filter_size=median_filter_size
+            )
 
         # Make the matrix of the derivative of the phase
         gradient_phases = np.stack([gradient_phase_g1, gradient_phase_g2])
