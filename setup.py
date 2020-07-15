@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(name='gpa',
       version='0.1',
@@ -11,5 +11,5 @@ setup(name='gpa',
           },
       entry_points={'hyperspy.extensions': 'gpa = gpa'},
       license='BSD-3-Clause',
-      packages=['gpa'],
+      packages=find_packages(),
       zip_safe=False)
