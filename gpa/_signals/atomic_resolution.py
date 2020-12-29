@@ -80,7 +80,7 @@ class AtomicResolutionFFT(ComplexSignal2D):
         ----------
         roi : CircleROI
             ROI used to define the Bragg filter in the spectral domain.
-        centre : bool
+        reduced : bool
             If True, the phase is centered around the zero component frequency
             (substract the average phase from the phase).
             The default is False.
@@ -96,7 +96,6 @@ class AtomicResolutionFFT(ComplexSignal2D):
         phase.data = np.angle(phase.data)
         phase._dtype = 'real'
         phase.set_signal_type('geometrical_phase')
-        phase._assign_subclass()
         phase.vector = vector_from_roi(roi)
         phase.metadata.General.title = 'Phase image'
         phase.metadata.set_item('GPA.phase_from_roi', str(roi))
@@ -107,10 +106,3 @@ class AtomicResolutionFFT(ComplexSignal2D):
             self.roi['g2'] = roi
 
         return phase
-
-    # def find_peaks(self):
-    #     if self.metadata.Signal.FFT.shifted:
-    #         offset = [int(v/2) for v in data.shape]
-    #     else:
-    #         offset = [0] * len(data.shape)
-    #     data = self.data[offset[0]:, offset[1]:]

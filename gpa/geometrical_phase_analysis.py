@@ -37,42 +37,32 @@ class GeometricalPhaseAnalysis:
         self.theta = None
         self.omega = None
 
-    def set_phase(self, phase_g1, phase_g2):
-        self.phases['g1'] = phase_g1
-        phase_g1.metadata.General.title = 'g1'
-        self.phases['g2'] = phase_g2
-        phase_g2.metadata.General.title = 'g2'
+    def set_phase(self, *phases):
+        for i, phase in enumerate(phases, start=1):
+            key = f'g{i}'
+            phase.metadata.General.title = 'g1'
+            self.phases[key] = phase
 
     def g_vectors(self, calibrated=True):
         return {g:self._g_vector(g, calibrated=calibrated)
-                for g in ['g1', 'g2']}
+                for g in self.rois.keys()}
 
     def _g_vector(self, g, calibrated=True):
         if calibrated:
             cal = np.array([1, 1])
         else:
             cal = np.array([axis.scale for axis in
-                            self.signal.axes_manager.signal_axes])
+                            self.fft.axes_manager.signal_axes])
 
         return np.array([self.rois[g].cx / cal[0],
                          self.rois[g].cy / cal[1]])
 
     @property
     def g_vectors_norm(self):
-        return {g:self._get_g_vector_norm(g) for g in ['g1', 'g2']}
-
-    def _get_g_vector_norm(self, g, calibrated=True):
-        g_vector = self._get_g_vector(g, calibrated=calibrated)
-        return np.sqrt(g_vector[0]**2 + g_vector[1]**2)
+        return {g:np.linalg.norm(g) for g in ['g1', 'g2']}
 
     def set_fft(self, *args, **kwargs):
         self.fft = self.signal.fft(*args, **kwargs)
-        # signal_axes = fft.axes_manager.signal_axes
-        # start = [(axis.axis[-1] - axis.axis[0]) / 4 + axis.axis[0] for
-        #          axis in signal_axes]
-        # end = [(axis.axis[-1] - axis.axis[0]) * 3 / 4 + axis.axis[0] for
-        #        axis in signal_axes]
-        # self.fft = fft.isig[start[0]:end[0], start[1]:end[1]]
 
     def plot_fft(self, *args, **kwargs):
         self.fft.plot(*args, **kwargs)
@@ -134,18 +124,41 @@ class GeometricalPhaseAnalysis:
         if isinstance(roi_args, float):
             roi_args = [[roi_args, 0, 2],
                         [0, roi_args, 2]]
-        for key, args in zip(['g1', 'g2'], roi_args):
-            self.add_roi(key, *args)
+        for i, args in enumerate(roi_args, start=1):
+            self.add_roi(f'g{i}', *args)
 
     def calculate_phase(self):
-        phase_g1 = self.fft.get_phase_from_roi(self.rois['g1'], reduced=True)
-        phase_g2 = self.fft.get_phase_from_roi(self.rois['g2'], reduced=True)
+        self.set_phase(*[self.fft.get_phase_from_roi(roi, reduced=True)
+                         for roi in self.rois.values()])
 
-        self.set_phase(phase_g1, phase_g2)
+    def _correct_phase(self, g):
+        w, h = self.signal.data.shape
+        cx, cy = self.g_vectors(calibrated=True)[g]
+
+        # gx1 = (cx-w//2)/w
+        # gy1 = (cy-h//2)/h
+        # x = np.arange(w)
+        # y = np.arange(h)
+        # X, Y = np.meshgrid(x, y)
+        # # calculate term to subtract: -2*pi*(g.r)
+        # return 2*np.pi*(gx1*X+gy1*Y)
+
+        print(cx, cy)
+        gx = (cx - w // 2) / w
+        gy = (cy - h // 2) / h
+        print(gx, gy)
+
+        signal_axes = self.signal.axes_manager.signal_axes
+        r_x = np.linspace(-0.5, 0.5, num=w) / signal_axes[0].scale
+        r_y = np.linspace(-0.5, 0.5, num=h) / signal_axes[1].scale
+        R_x, R_y = np.meshgrid(r_x, r_y)
+        # G_r = 2 * np.pi * ((R_x * ) + (R_y * g_vector[0]))
+
+        return 2 * np.pi * (cx * R_x + cy * R_y)
 
     def plot_phase(self, add_refinement_rois=True):
-        self.phases['g1'].plot(cmap='viridis')
-        self.phases['g2'].plot(cmap='viridis')
+        for phase in self.phases.values():
+            phase.plot(cmap='viridis')
 
         if add_refinement_rois:
             for key, phase in self.phases.items():
@@ -166,15 +179,33 @@ class GeometricalPhaseAnalysis:
         for key, phase in self.phases.items():
             phase.unwrap()
 
+    def calculate_displacement1D(self):
+        """
+        Calculate the displacement maps along one axis
+
+        Returns
+        -------
+        u_x : np.ndarray of dimension 2
+            Displacement map along the specified axis
+
+        """
+        phase_stack = np.vstack([self.phases['g1'].data.flatten(),
+                                 self.phases['g2'].data.flatten()])
+
+        U_stack = self._a_matrix() @ phase_stack / (-2*np.pi)
+
+        u_x = U_stack[0].reshape(self.phases['g1'].data.shape)
+
+        self.u_x = hs.signals.Signal2D(u_x)
+        self.u_x.metadata.Signal.quantity = "$u_{x}$"
+
+
+        return self.u_x, self.u_y
+
     def calculate_displacement(self):
         """
         Calculate the displacement maps along the x and y axis from the phase
         images
-
-        Parameters
-        ----------
-        phase_g1, phase_g2 : :py:class:`~gpa.atomic_resolution.GeometricPhaseImage`
-            Phase images corresponding to vectors g1 and g2.
 
         Returns
         -------
@@ -213,54 +244,49 @@ class GeometricalPhaseAnalysis:
 
         """
         # Calculate the derivative the phase image
-        gradient_phase_g1 = self.phases['g1'].gradient(
-            flatten=True,
+        dP1dx, dP1dy = self.phases['g1'].gradient(
             median_filter_size=median_filter_size
             )
-        gradient_phase_g2 = self.phases['g2'].gradient(
-            flatten=True,
+        dP2dx, dP2dy = self.phases['g2'].gradient(
             median_filter_size=median_filter_size
             )
 
-        # Make the matrix of the derivative of the phase
-        gradient_phases = np.stack([gradient_phase_g1, gradient_phase_g2])
+        [a1x, a2x], [a1y, a2y] = self._a_matrix()
 
-        # Multiply both matrix
-        e = self._a_matrix() @ gradient_phases / (-2*np.pi)
-
-        shape = self.phases['g1'].data.shape
-        e_xx, e_xy = e[0, 0].reshape(shape), e[0, 1].reshape(shape)
-        e_yx, e_yy = e[1, 0].reshape(shape), e[1, 1].reshape(shape)
+        e_xx = -1 / (2 * np.pi) * (a1x * dP1dx + a2x * dP2dx)
+        e_xy = -1 / (2 * np.pi) * (a1x * dP1dy + a2x * dP2dy)
+        e_yx = -1 / (2 * np.pi) * (a1y * dP1dx + a2y * dP2dx)
+        e_yy = -1 / (2 * np.pi) * (a1y * dP1dy + a2y * dP2dy)
 
         axes_list = list(self.signal.axes_manager.as_dictionary().values())
         self.e_xx = hs.signals.Signal2D(e_xx, axes=axes_list)
         self.e_xx.metadata.General.title = "$\epsilon_{xx}$"
-        self.e_xx.metadata.Signal.quantity = "$\epsilon_{xx}$ (%)"
+        self.e_xx.metadata.Signal.quantity = "$\epsilon_{xx}$"
 
         self.e_yy = hs.signals.Signal2D(e_yy, axes=axes_list)
         self.e_yy.metadata.General.title = "$\epsilon_{yy}$"
-        self.e_yy.metadata.Signal.quantity = "$\epsilon_{yy}$ (%)"
+        self.e_yy.metadata.Signal.quantity = "$\epsilon_{yy}$"
 
         self.e_xy = hs.signals.Signal2D(e_xy, axes=axes_list)
         self.e_xy.metadata.General.title = "$\epsilon_{xy}$"
-        self.e_xy.metadata.Signal.quantity = "$\epsilon_{xy}$ (%)"
+        self.e_xy.metadata.Signal.quantity = "$\epsilon_{xy}$"
 
         self.e_yx = hs.signals.Signal2D(e_yx, axes=axes_list)
         self.e_yx.metadata.General.title = "$\epsilon_{yx}$"
-        self.e_yx.metadata.Signal.quantity = "$\epsilon_{yx}$ (%)"
+        self.e_yx.metadata.Signal.quantity = "$\epsilon_{yx}$"
 
         self.theta = hs.signals.Signal2D(0.5*(e_xy + e_yx), axes=axes_list)
         self.theta.metadata.General.title = "$\theta$"
-        self.theta.metadata.Signal.quantity = "$\theta$ (%)"
+        self.theta.metadata.Signal.quantity = "$\theta$"
 
         self.omega = hs.signals.Signal2D(0.5*(e_xy - e_yx), axes=axes_list)
         self.omega.metadata.General.title = "$\omega$"
-        self.omega.metadata.Signal.quantity = "$\omega$ (%)"
+        self.omega.metadata.Signal.quantity = "$\omega$"
 
     def plot_strain(self, components='all', same_figure=True, **kwargs):
         # Set default value
         for key, value in zip(['cmap', 'vmin', 'vmax'],
-                              ['viridis', -0.01, 0.01]):
+                              ['viridis', '1th', '99th']):
             if key not in kwargs.keys():
                 kwargs[key] = value
         if components == 'all':
@@ -284,27 +310,26 @@ class GeometricalPhaseAnalysis:
             if 'e_yx' in components:
                 self.e_yx.plot(**kwargs)
 
-    def _a_matrix(self, norm=False):
+    def _a_matrix(self):
         """
         The a matrix is the matrix formed of the vector a1 and a2, which
         correspond to the lattice in real space defined by the reciprocal
-        lattice vectors g1 and g2
+        lattice vectors g1 and g2.
+        Units is in pixel
 
         Notes
         -----
         See equation (36) in Hytch et al. Ultramicroscopy 1998
         """
-        a_matrix = np.linalg.inv(self._g_matrix().T)
+        g_matrix = self._g_matrix() / np.array(self.signal.data.shape)
 
-        return a_matrix
+        return np.linalg.inv(g_matrix.T)
 
-    def _g_matrix(self):
+    def _g_matrix(self, calibrated=False):
         """
         The g matrix is the matrix formed of the vector g1 and g2
         """
         # get the g1, g2 vectors in pixel
-        g_matrix = np.array(list(self.g_vectors(calibrated=False).values()))
-        # normalise then to the size of the image
-        g_matrix = g_matrix / np.array(self.signal.data.shape)
+        g_matrix = np.array(list(self.g_vectors(calibrated=calibrated).values())).T
 
         return g_matrix

@@ -88,7 +88,7 @@ class GeometricalPhaseImage(Signal2D):
         else:
             return self._deepcopy_with_new_data(data)
 
-    def gradient(self, flatten=False, median_filter_size=0):
+    def gradient(self, flatten=False, median_filter_size=5):
         """ Calculate the gradient of the phase
 
         Parameters
@@ -100,15 +100,26 @@ class GeometricalPhaseImage(Signal2D):
         -----
         Appendix D in Hytch et al. Ultramicroscopy 1998
         """
-        x, y = np.exp(-1j*self.data) * np.gradient(np.exp(1j*self.data))
+        x, y = np.imag(np.exp(-1j*self.data) * np.gradient(np.exp(1j*self.data)))
 
         if median_filter_size >0:
-            x = ndimage.median_filter(np.imag(x), median_filter_size)
-            y = ndimage.median_filter(np.imag(y), median_filter_size)
+            x = ndimage.median_filter(x, median_filter_size)
+            y = ndimage.median_filter(y, median_filter_size)
         if flatten:
             return np.array([x.flatten(), y.flatten()])
         else:
             return np.array([x, y])
+
+    def _calc_derivative(self, axis):
+        """
+        Calculate the derivative of a phase image, see appendix D.
+        """
+        s1 = np.exp(-1j * self.data)
+        s2 = np.exp(1j * self.data)
+        d1 = np.diff(s2, axis=axis)  # will have 1 axis reduced by 1 pix
+        nd = np.min(d1.shape)
+        dP1 = s1[:nd, :nd] * d1[:nd, :nd]
+        return dP1.imag
 
     def _unwrap(self, data, normalise=True):
         data = unwrap_phase(data)

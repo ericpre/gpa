@@ -2,10 +2,9 @@ import numpy as np
 from hyperspy._signals.signal2d import Signal2D
 
 
-def get_atomic_resolution_tem_signal2d(size_x=200, size_y=200,
-                                       spacing_x=15, spacing_y=15,
-                                       gaussian_width_x=4, gaussian_width_y=4,
-                                       rotation_angle=0):
+def get_atomic_resolution(size_x=200, size_y=200, spacing_x=15, spacing_y=15,
+                          gaussian_width_x=4, gaussian_width_y=4,
+                          rotation_angle=0):
     """Get an artificial atomic resolution TEM Signal2D.
 
     Returns
@@ -36,6 +35,7 @@ def get_atomic_resolution_tem_signal2d(size_x=200, size_y=200,
             image[i*spacing_x:(i+1)*spacing_x, j*spacing_x:(j+1)*spacing_x] += gaussian_peak
 
     s = Signal2D(image)
+    s.set_signal_type('atomic_resolution')
 
     if rotation_angle != 0:
         from scipy.ndimage import rotate
@@ -50,6 +50,22 @@ def get_atomic_resolution_tem_signal2d(size_x=200, size_y=200,
     for axis in s.axes_manager.signal_axes:
         axis.scale = 0.015
         axis.units = 'nm'
+
+    return s
+
+
+def get_atomic_resolution_interface(size=2048, spacing=14, strain=-0.02,
+                                    gaussian_width=4):
+
+
+    s0 = get_atomic_resolution(size, size/2, spacing, spacing) * 1E5
+    s1 = s0.rebin(scale=(1+strain, 1))
+    s = Signal2D(np.hstack([_s.data for _s in [s0, s1]])[:size, :size])
+    s.set_signal_type('atomic_resolution')
+    s0_axis = s0.axes_manager.signal_axes[0]
+    for axis in s.axes_manager.signal_axes:
+        axis.scale = s0_axis.scale
+        axis.units = s0_axis.units
 
     return s
 
