@@ -1,9 +1,14 @@
+# BSD 3-Clause License
+#
+# Copyright (c) 2020, Eric Prestat
+# All rights reserved.
+
 import numpy as np
 
-import hyperspy.api as hs
 from hyperspy.signals import Signal2D, ComplexSignal2D
 
 from gpa.utils import get_mask_from_roi, vector_from_roi
+from gpa.tools import GeometricalPhaseAnalysisTool
 
 
 
@@ -12,11 +17,9 @@ class AtomicResolution(Signal2D):
     signal_type = 'atomic_resolution'
     _signal_dimension = 2
 
-    def adjust_g_position(self, fft, **kwargs):
-        if fft._plot is None or not fft._plot.is_active:
-            fft.plot()
 
-        self.roi_g1 = hs.roi.CircleROI(6.5, -1.5)
+    def create_gpa_tool(self):
+        return GeometricalPhaseAnalysisTool(self)
 
     def fft(self, *args, **kwargs):
         fft = super().fft(*args, **kwargs)
@@ -39,10 +42,10 @@ class AtomicResolutionFFT(ComplexSignal2D):
         mask = get_mask_from_roi(self, roi, gaussian)
         # check inplace, out, multi-dimensional. etc.
         signal = self * mask
+        signal.set_signal_type(self.signal_type)
+
         shifted = self.metadata.Signal.FFT.shifted
         if centre:
-            # alternative would be to substract a ramp of a corresponding g
-            # followed by normalisation to -pi, pi
             values = (roi.cx, roi.cy)
             for axis, value in zip(signal.axes_manager.signal_axes, values):
                 zero_frequency_index = axis.size / 2 if shifted else 0
@@ -67,7 +70,6 @@ class AtomicResolutionFFT(ComplexSignal2D):
 
         """
         signal = self._bragg_filtering(roi, return_real=True)
-        signal.set_signal_type(self.signal_type)
         signal.metadata.General.title = 'Bragg filtered image'
 
         return signal
@@ -96,7 +98,7 @@ class AtomicResolutionFFT(ComplexSignal2D):
         phase.data = np.angle(phase.data)
         phase._dtype = 'real'
         phase.set_signal_type('geometrical_phase')
-        phase.vector = vector_from_roi(roi)
+        phase.g_vector = vector_from_roi(roi)
         phase.metadata.General.title = 'Phase image'
         phase.metadata.set_item('GPA.phase_from_roi', str(roi))
 

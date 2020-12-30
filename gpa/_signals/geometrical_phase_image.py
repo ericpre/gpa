@@ -1,6 +1,9 @@
+# BSD 3-Clause License
+#
+# Copyright (c) 2020, Eric Prestat
+# All rights reserved.
+
 import numpy as np
-from scipy import ndimage
-from skimage.restoration import unwrap_phase
 from hyperspy._signals.signal2d import Signal2D
 from hyperspy.roi import BaseROI, RectangularROI
 
@@ -12,7 +15,7 @@ class GeometricalPhaseImage(Signal2D):
     signal_type = 'geometrical_phase'
     _signal_dimension = 2
 
-    def __init__(self, vector=None, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     def add_refinement_roi(self, roi=None):
@@ -40,8 +43,10 @@ class GeometricalPhaseImage(Signal2D):
             end = [3 * (axis.axis[-1] - axis.axis[0]) / 4 + axis.offset
                    for axis in self.axes_manager.signal_axes]
             roi = RectangularROI(*start, *end)
+
         if self._plot is None or not self._plot.is_active:
             self.plot()
+
         roi.interactive(self)
 
         return roi
@@ -88,52 +93,50 @@ class GeometricalPhaseImage(Signal2D):
         else:
             return self._deepcopy_with_new_data(data)
 
-    def gradient(self, flatten=False, median_filter_size=5):
+    def gradient(self, flatten=False):
         """ Calculate the gradient of the phase
 
         Parameters
         ----------
-        median_filter_size : float, default is 5
-            Size of the median filter applied to the gradient of the phase map.
+        flatten : float, default is False
+            If True, returns flattened array.
 
         Notes
         -----
         Appendix D in Hytch et al. Ultramicroscopy 1998
         """
-        x, y = np.imag(np.exp(-1j*self.data) * np.gradient(np.exp(1j*self.data)))
 
-        if median_filter_size >0:
-            x = ndimage.median_filter(x, median_filter_size)
-            y = ndimage.median_filter(y, median_filter_size)
+        phase = 1j * self.data
+        x, y = np.imag(np.exp(-phase) * np.gradient(np.exp(phase), axis=[1, 0]))
+
         if flatten:
             return np.array([x.flatten(), y.flatten()])
         else:
             return np.array([x, y])
 
-    def _calc_derivative(self, axis):
+    def _get_phase_ramp(self):
         """
-        Calculate the derivative of a phase image, see appendix D.
+        Get the phase ramp corresponding to a g vector.
+
+        Parameters
+        ----------
+        g : numpy.ndarray
+            g vectors in calibrated units.
+
+        Returns
+        -------
+        numpy.ndarray
+
         """
-        s1 = np.exp(-1j * self.data)
-        s2 = np.exp(1j * self.data)
-        d1 = np.diff(s2, axis=axis)  # will have 1 axis reduced by 1 pix
-        nd = np.min(d1.shape)
-        dP1 = s1[:nd, :nd] * d1[:nd, :nd]
-        return dP1.imag
+        # Ramp over 2pi
+        shape = self.data.shape
+        x = np.arange(shape[0]) / shape[0] * 2 * np.pi
+        y = np.arange(shape[1]) / shape[1] * 2 * np.pi
+        xx, yy = np.meshgrid(x, y)
 
-    def _unwrap(self, data, normalise=True):
-        data = unwrap_phase(data)
+        # convert to pixel unit
+        g_px = 2 * self.g_vector / self.axes_manager.signal_axes[0].scale / shape[0]
+        print("g_px", g_px)
 
-        if normalise:
-            data = normalise_to_range(data, -np.pi, np.pi)
-
-        return data
-
-    def unwrap(self, inplace=True, normalise=True):
-        data = self._unwrap(self.data, normalise=normalise)
-
-        if inplace:
-            self.data = data
-            self.events.data_changed.trigger(self)
-        else:
-            return self._deepcopy_with_new_data(data)
+        # phase ramp corresponding to g vector
+        return g_px[0] * xx + g_px[1] * yy

@@ -1,3 +1,8 @@
+# BSD 3-Clause License
+#
+# Copyright (c) 2020, Eric Prestat
+# All rights reserved.
+
 import numpy as np
 
 from hyperspy.signal import BaseSignal
@@ -51,8 +56,6 @@ def get_mask_from_roi(signal, roi, axes=None, gaussian=True):
                   [cy - radius, cy + radius]]
     else:
         ranges = roi._get_ranges()
-
-
 
     if hasattr(roi, 'cx'):
         slices = roi._make_slices(axes, axes, ranges=ranges)

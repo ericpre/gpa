@@ -1,5 +1,8 @@
-from gpa._signals.atomic_resolution import (AtomicResolution,
-                                            AtomicResolutionFFT)
-from gpa._signals.geometrical_phase_image import GeometricalPhaseImage
-from gpa.geometrical_phase_analysis import GeometricalPhaseAnalysis
+# BSD 3-Clause License
+#
+# Copyright (c) 2020, Eric Prestat
+# All rights reserved.
+
+import gpa._signals as signals
+from gpa.tools import GeometricalPhaseAnalysisTool
 from gpa import datasets
