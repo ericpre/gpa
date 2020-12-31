@@ -9,6 +9,7 @@ import hyperspy.api as hs
 import pint
 
 from gpa.utils import relative2value
+from gpa.drawing import VectorBasis
 
 
 # TODO:
@@ -41,8 +42,8 @@ class GeometricalPhaseAnalysisTool:
 
     def set_phase(self, *phases):
         for i, phase in enumerate(phases, start=1):
-            key = f'g{i} reduced Phase'
-            phase.metadata.General.title = key
+            key = f'g{i}'
+            phase.metadata.General.title = f'{key} reduced Phase'
             self.phases[key] = phase
 
     def g_vectors(self, calibrated=True):
@@ -269,13 +270,17 @@ class GeometricalPhaseAnalysisTool:
         if same_figure:
             signals = [getattr(self, component) for component in components]
             fig = plt.figure(figsize=(12, 4.8))
-            hs.plot.plot_images(signals, per_row=3, label='titles',
-                                colorbar='single', scalebar=[0],
-                                axes_decor=None, fig=fig, **kwargs)
+            axs = hs.plot.plot_images(signals, per_row=3, label='titles',
+                                      colorbar='single', scalebar=[0],
+                                      axes_decor=None, fig=fig, **kwargs)
+            self.plot_vector_basis(ax=axs[-1], labels=['x', 'y'], animated=False)
             plt.tight_layout(rect=[0, 0, 0.9, 1])
         else:
             for component in components:
-                getattr(self, component).plot(**kwargs)
+                s = getattr(self, component)
+                s.plot(**kwargs)
+                self.plot_vector_basis(ax=s._plot.signal_plot.ax,
+                                       labels=['x', 'y'])
 
     def _a_matrix(self, calibrated=False):
         """
@@ -290,7 +295,7 @@ class GeometricalPhaseAnalysisTool:
         """
         return np.linalg.inv(self._g_matrix(calibrated).T)
 
-    def _g_matrix(self, calibrated=False):
+    def _g_matrix(self, calibrated=False, normalised=False):
         """ The g matrix is the matrix formed of the vector g1 and g2. If g2
         is undefined, we set g2 orthogonal to g1
         """
@@ -298,5 +303,42 @@ class GeometricalPhaseAnalysisTool:
         if len(g_vectors) == 1:
             g1 = g_vectors[0]
             g_vectors.append([g1[1], -g1[0]])
+        g_matrix = np.array(g_vectors).T
+        if normalised:
+            g_matrix = g_matrix / np.linalg.norm(g_matrix)
 
-        return np.array(g_vectors).T
+        return g_matrix
+
+    def plot_vector_basis(self, ax=None, loc='upper right', labels=None,
+                          scaling_factor=0.15, **kwargs):
+        """
+        Plot the vector basis defined by g1 and g2.
+
+        Parameters
+        ----------
+        ax : matplotlib subplot, optional
+            The matplotlib subplot the basis vectors will be plotted. If None,
+            the last subplot is used.
+            The default is None.
+        loc : str or int
+            Matplotlib loc parameter, see for example the documentation of the
+            `plt.legend` function.
+        scaling_factor : float
+            Factor defined the width of the basis vectors relative to the
+            width of the image.
+
+        Returns
+        -------
+        None.
+
+        """
+        if ax is None:
+            ax = plt.gca()
+
+        width = ax.images[0].get_extent()[1] - ax.images[0].get_extent()[0]
+        vectors = self._g_matrix(normalised=True) * width * scaling_factor / 2
+
+        if labels is None:
+            labels = [rf'g$_{i}$' for i in range(1, len(vectors)+1)]
+
+        VectorBasis(ax, vectors, labels=labels, loc=loc, **kwargs)
