@@ -15,7 +15,7 @@ def assert_g_a_matrices_product(g_matrix, a_matrix):
 
 
 def assert_strain_components(gpa_tool):
-    for component in ['e_xx', 'e_yy', 'e_xy', 'e_yx', 'omega', 'theta']:
+    for component in ['e_xx', 'e_yy', 'omega', 'theta']:
         assert isinstance(getattr(gpa_tool, component), hs.signals.Signal2D)
 
 
@@ -107,4 +107,15 @@ def test_gpa2D(gpa_tool, rois):
     gpa_tool.calculate_displacement()
     gpa_tool.calculate_strain()
     assert_strain_components(gpa_tool)
+
+
+def test_gpa2D_angle(gpa_tool, rois):
+    gpa_tool.add_rois(rois)
+    gpa_tool.calculate_phase()
+    assert gpa_tool.angle is None
+    gpa_tool.calculate_strain(angle=30.0)
+    assert gpa_tool.angle == 30.0
+    np.testing.assert_allclose(gpa_tool._g_matrix(),
+                               np.array([[ 0.05650816, -0.032625],
+                                         [-0.03525, -0.06105479]]))
 

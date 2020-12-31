@@ -14,8 +14,6 @@ s.plot()
 gpa_tool = s.create_gpa_tool()
 gpa_tool.set_fft(True)
 
-gpa_tool.add_rois([[4.7, 0.0, 1.5], [0.0, -4.7, 1.5]])
-
 gpa_tool.plot_fft(True)
 
 gpa_tool.add_rois([[4.7, 0.0, 1.5], [0.0, -4.7, 1.5]])

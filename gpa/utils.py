@@ -120,3 +120,21 @@ def normalise_to_range(data, vmin, vmax):
     dmax = data.max()
     return (vmax - vmin) * (data - dmin) / (dmax - dmin) + vmin
 
+
+def rotation_matrix(angle):
+    theta = np.radians(angle)
+
+    return np.array([[np.cos(theta), -np.sin(theta)],
+                     [np.sin(theta),  np.cos(theta)]])
+
+
+def rotate_strain_tensor(angle, exx, eyy, eyx, exy):
+    st = np.sin(angle/360*np.pi*2)
+    ct = np.cos(angle/360*np.pi*2)
+
+    nexx = exx*ct**2 + eyy*st*ct + eyx*ct*st + exy*st**2
+    nexy = -exx*ct*st + eyy*ct**2 - eyx*st**2 + exy*ct*st
+    neyx = -exx*ct*st - eyy*st**2 + eyx*ct**2 + exy*st*ct
+    neyy = exx*st**2 - eyy*st*ct - eyx*ct*st + exy*ct**2
+
+    return np.array([[nexx, nexy], [neyx, neyy]])

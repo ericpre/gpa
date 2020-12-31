@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import hyperspy.api as hs
 import pint
 
-from gpa.utils import relative2value
+from gpa.utils import relative2value, rotation_matrix, rotate_strain_tensor
 from gpa.drawing import VectorBasis
 
 
@@ -17,8 +17,6 @@ from gpa.drawing import VectorBasis
 # - speeding up phase calculation?
 # - sync radius ROI
 # - add ROI to plot if rois already exists, when plotting fft
-# - add vector basis on plot
-# - rotate basis
 
 
 class GeometricalPhaseAnalysisTool:
@@ -29,6 +27,9 @@ class GeometricalPhaseAnalysisTool:
         self.rois = {}
         self.refinement_roi = None
         self.phases = {}
+        self._derivative_matrix = None
+
+        self.angle = None
 
         self.u_x = None
         self.u_y = None
@@ -178,10 +179,15 @@ class GeometricalPhaseAnalysisTool:
         for roi in self.rois.values():
             roi.update()
 
-    def calculate_displacement(self):
+    def calculate_displacement(self, angle=None):
         """
         Calculate the displacement maps along the x and y axis from the phase
         images
+
+        Parameters
+        ----------
+        angle : float or None, optional
+            Set the angle of the x vector relative to the horizontal axis
 
         Returns
         -------
@@ -189,6 +195,9 @@ class GeometricalPhaseAnalysisTool:
             Displacement map along the x and y axis
 
         """
+        if angle is not None:
+            self.angle = angle
+
         shape = self.signal.axes_manager.signal_shape
         phases = [phase.data.flatten() for phase in self.phases.values()]
         # only one g, append nul phase
@@ -206,15 +215,7 @@ class GeometricalPhaseAnalysisTool:
 
         return self.u_x, self.u_y
 
-    def calculate_strain(self):
-        """
-        Calculate the strain tensor from the phase image.
-
-        Notes
-        -----
-        See equation (42) in Hytch et al. Ultramicroscopy 1998
-
-        """
+    def _calculate_derivative_matrix(self):
         # Calculate the derivative of the phase image
         phase_derivative = [phase.gradient(flatten=True)
                             for phase in self.phases.values()]
@@ -224,13 +225,37 @@ class GeometricalPhaseAnalysisTool:
         if len(phase_derivative) == 1:
             phase_derivative.append([np.zeros(np.multiply(*shape)) for i in range(2)])
 
-        derivative_matrix = np.array(phase_derivative)
+        self._derivative_matrix = np.array(phase_derivative)
 
-        E = self._a_matrix() @ derivative_matrix / (-2*np.pi)
-        e_xx = E[0, 0].reshape(shape)
-        e_yy = E[1, 1].reshape(shape)
-        e_yx = E[1, 0].reshape(shape)
-        e_xy = E[0, 1].reshape(shape)
+    def calculate_strain(self, angle=None):
+        """
+        Calculate the strain tensor from the phase image. The strain components
+        are set as attributes with the name: `e_xx`, `e_yy`, `theta` and `omega`
+
+        Parameters
+        ----------
+        angle : float or None, optional
+            Set the angle of the x vector relative to the horizontal axis
+
+        Notes
+        -----
+        See equation (42) in Hytch et al. Ultramicroscopy 1998
+
+        """
+        if self._derivative_matrix is None:
+            self._calculate_derivative_matrix()
+
+        e = self._a_matrix() @ self._derivative_matrix / (-2*np.pi)
+
+        if angle is not None:
+            self.angle = angle
+            e = rotate_strain_tensor(angle, e[0, 0], e[1, 1], e[1, 0], e[0, 1])
+
+        shape = self.signal.axes_manager.signal_shape
+        e_xx = e[0, 0].reshape(shape)
+        e_yy = e[1, 1].reshape(shape)
+        e_yx = e[1, 0].reshape(shape)
+        e_xy = e[0, 1].reshape(shape)
 
         axes_list = list(self.signal.axes_manager.as_dictionary().values())
         self.e_xx = hs.signals.Signal2D(e_xx, axes=axes_list)
@@ -240,14 +265,6 @@ class GeometricalPhaseAnalysisTool:
         self.e_yy = hs.signals.Signal2D(e_yy, axes=axes_list)
         self.e_yy.metadata.General.title = r"$\epsilon_{yy}$"
         self.e_yy.metadata.Signal.quantity = r"$\epsilon_{yy}$"
-
-        self.e_xy = hs.signals.Signal2D(e_xy, axes=axes_list)
-        self.e_xy.metadata.General.title = r"$\epsilon_{xy}$"
-        self.e_xy.metadata.Signal.quantity = r"$\epsilon_{xy}$"
-
-        self.e_yx = hs.signals.Signal2D(e_yx, axes=axes_list)
-        self.e_yx.metadata.General.title = r"$\epsilon_{yx}$"
-        self.e_yx.metadata.Signal.quantity = r"$\epsilon_{yx}$"
 
         self.theta = hs.signals.Signal2D(0.5*(e_xy + e_yx), axes=axes_list)
         self.theta.metadata.General.title = r"$\theta$"
@@ -293,17 +310,25 @@ class GeometricalPhaseAnalysisTool:
         -----
         See equation (36) in Hytch et al. Ultramicroscopy 1998
         """
-        return np.linalg.inv(self._g_matrix(calibrated).T)
+        return np.linalg.inv(self._g_matrix(calibrated, angle=0).T)
 
-    def _g_matrix(self, calibrated=False, normalised=False):
+    def _g_matrix(self, calibrated=False, normalised=False, angle=None):
         """ The g matrix is the matrix formed of the vector g1 and g2. If g2
         is undefined, we set g2 orthogonal to g1
         """
         g_vectors = list(self.g_vectors(calibrated=calibrated).values())
+
         if len(g_vectors) == 1:
             g1 = g_vectors[0]
             g_vectors.append([g1[1], -g1[0]])
+
         g_matrix = np.array(g_vectors).T
+
+        if angle is not None:
+            g_matrix = g_matrix @ rotation_matrix(angle)
+        elif self.angle is not None:
+            g_matrix = g_matrix @ rotation_matrix(self.angle)
+
         if normalised:
             g_matrix = g_matrix / np.linalg.norm(g_matrix)
 
