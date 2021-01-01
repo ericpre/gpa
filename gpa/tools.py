@@ -3,6 +3,8 @@
 # Copyright (c) 2020, Eric Prestat
 # All rights reserved.
 
+import warnings
+
 import numpy as np
 import matplotlib.pyplot as plt
 import hyperspy.api as hs
@@ -291,7 +293,9 @@ class GeometricalPhaseAnalysisTool:
                                       colorbar='single', scalebar=[0],
                                       axes_decor=None, fig=fig, **kwargs)
             self.plot_vector_basis(ax=axs[-1], labels=['x', 'y'], animated=False)
-            plt.tight_layout(rect=[0, 0, 0.9, 1])
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=UserWarning)
+                plt.tight_layout(rect=[0, 0, 0.9, 1])
         else:
             for component in components:
                 s = getattr(self, component)

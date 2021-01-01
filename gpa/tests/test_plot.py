@@ -4,9 +4,11 @@
 # All rights reserved.
 
 import matplotlib.pyplot as plt
+import pytest
 
 
-def test_plot_gpa2D(gpa_tool, rois):
+@pytest.mark.parametrize('angle', [None, 30])
+def test_plot_gpa2D(gpa_tool, rois, angle):
     gpa_tool.add_rois(rois)
 
     gpa_tool.calculate_phase()
