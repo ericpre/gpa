@@ -8,6 +8,7 @@ import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 import hyperspy.api as hs
+from hyperspy.roi import BaseROI, RectangularROI
 import pint
 
 from gpa.utils import relative2value, rotation_matrix, rotate_strain_tensor
@@ -133,6 +134,23 @@ class GeometricalPhaseAnalysisTool:
         for i, args in enumerate(roi_args, start=1):
             self.add_roi(f'g{i}', *args)
 
+    def set_refinement_roi(self, roi):
+        if not isinstance(roi, BaseROI):
+            roi = hs.roi.RectangularROI(*roi)
+
+        self.refinement_roi = roi
+
+        for phase in self.phases.values():
+            if phase._plot is not None and phase._plot.is_active:
+                phase.plot_refinement_roi(roi)
+
+    def _get_default_refinement_roi(self):
+        signal_axes = self.signal.axes_manager.signal_axes
+        start = [relative2value(axis, 1/4) for axis in signal_axes]
+        end = [relative2value(axis, 3/4) for axis in signal_axes]
+
+        return RectangularROI(*start, *end)
+
     def calculate_phase(self):
         self.set_phase(*[self.fft.get_phase_from_roi(roi, reduced=True)
                          for roi in self.rois.values()])
@@ -162,15 +180,14 @@ class GeometricalPhaseAnalysisTool:
 
         return 2 * np.pi * (cx * R_x + cy * R_y)
 
-    def plot_phase(self, add_refinement_rois=True):
+    def plot_phase(self, refinement_roi=True):
         for phase in self.phases.values():
             phase.plot(cmap='viridis')
 
-        if add_refinement_rois:
-            for key, phase in self.phases.items():
-                returned = phase.add_refinement_roi(self.refinement_roi)
+            if refinement_roi:
                 if self.refinement_roi is None:
-                    self.refinement_roi = returned
+                    self.refinement_roi = self._get_default_refinement_roi()
+                phase.plot_refinement_roi(self.refinement_roi)
 
     def refine_phase(self):
         for key, phase in self.phases.items():

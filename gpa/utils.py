@@ -138,3 +138,27 @@ def rotate_strain_tensor(angle, exx, eyy, eyx, exy):
     neyy = exx*st**2 - eyy*st*ct - eyx*ct*st + exy*ct**2
 
     return np.array([[nexx, nexy], [neyx, neyy]])
+
+
+def gradient_phase(phase, flatten=False):
+    """ Calculate the gradient of the phase
+
+    Parameters
+    ----------
+    phase : numpy.ndarray
+        Phase image
+    flatten : float, default is False
+        If True, returns flattened array.
+
+    Notes
+    -----
+    Appendix D in Hytch et al. Ultramicroscopy 1998
+    """
+
+    phase = 1j * phase
+    x, y = np.imag(np.exp(-phase) * np.gradient(np.exp(phase), axis=[1, 0]))
+
+    if flatten:
+        return np.array([x.flatten(), y.flatten()])
+    else:
+        return np.array([x, y])

@@ -34,3 +34,15 @@ def test_plot_gpa2D(gpa_tool, rois, angle):
         c = getattr(gpa_tool, component)
         assert c._plot is not None
         c._plot.close()
+
+
+def test_plot_phase_refinement_roi(gpa_tool, rois):
+    gpa_tool.add_rois(rois)
+    gpa_tool.calculate_phase()
+
+    refinement_roi = [1., 5., 12., 24.]
+    gpa_tool.set_refinement_roi(refinement_roi)
+    roi = gpa_tool.refinement_roi
+    assert [roi.left, roi.top, roi.right, roi.bottom] == refinement_roi
+
+    gpa_tool.plot_phase()
