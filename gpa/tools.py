@@ -16,8 +16,7 @@ from gpa.drawing import VectorBasis
 
 
 # TODO:
-# - Refine phase
-# - speeding up phase calculation?
+# - speeding up gradient calculation?
 # - sync radius ROI
 # - add ROI to plot if rois already exists, when plotting fft
 
@@ -30,7 +29,6 @@ class GeometricalPhaseAnalysisTool:
         self.rois = {}
         self.refinement_roi = None
         self.phases = {}
-        self._derivative_matrix = None
 
         self.angle = None
 
@@ -155,31 +153,6 @@ class GeometricalPhaseAnalysisTool:
         self.set_phase(*[self.fft.get_phase_from_roi(roi, reduced=True)
                          for roi in self.rois.values()])
 
-    def _correct_phase(self, g):
-        w, h = self.signal.data.shape
-        cx, cy = self.g_vectors(calibrated=True)[g]
-
-        # gx1 = (cx-w//2)/w
-        # gy1 = (cy-h//2)/h
-        # x = np.arange(w)
-        # y = np.arange(h)
-        # X, Y = np.meshgrid(x, y)
-        # # calculate term to subtract: -2*pi*(g.r)
-        # return 2*np.pi*(gx1*X+gy1*Y)
-
-        print(cx, cy)
-        gx = (cx - w // 2) / w
-        gy = (cy - h // 2) / h
-        print(gx, gy)
-
-        signal_axes = self.signal.axes_manager.signal_axes
-        r_x = np.linspace(-0.5, 0.5, num=w) / signal_axes[0].scale
-        r_y = np.linspace(-0.5, 0.5, num=h) / signal_axes[1].scale
-        R_x, R_y = np.meshgrid(r_x, r_y)
-        # G_r = 2 * np.pi * ((R_x * ) + (R_y * g_vector[0]))
-
-        return 2 * np.pi * (cx * R_x + cy * R_y)
-
     def plot_phase(self, refinement_roi=True):
         for phase in self.phases.values():
             phase.plot(cmap='viridis')
@@ -190,18 +163,25 @@ class GeometricalPhaseAnalysisTool:
                 phase.plot_refinement_roi(self.refinement_roi)
 
     def refine_phase(self):
-        for key, phase in self.phases.items():
-            phase.refine_phase(self.fft,
-                               self.rois[key],
-                               self.refinement_roi
-                               )
-        for roi in self.rois.values():
-            roi.update()
+        """
+        Adjust the gradient of the phase so that the strain in the reference
+        area is zero.
+
+
+        Returns
+        -------
+        None.
+
+        """
+        for phase in self.phases.values():
+            if phase._gradient is None:
+                phase.gradient()
+            phase.refine_phase(self.refinement_roi)
 
     def calculate_displacement(self, angle=None):
         """
         Calculate the displacement maps along the x and y axis from the phase
-        images
+        images.
 
         Parameters
         ----------
@@ -234,17 +214,21 @@ class GeometricalPhaseAnalysisTool:
 
         return self.u_x, self.u_y
 
-    def _calculate_derivative_matrix(self):
+    def _get_grad_phase_array(self):
+        phase_grad = []
         # Calculate the derivative of the phase image
-        phase_derivative = [phase.gradient(flatten=True)
-                            for phase in self.phases.values()]
+        for phase in self.phases.values():
+            if phase._gradient is None:
+                phase.gradient()
+            with phase._gradient.unfolded():
+                phase_grad.append(phase._gradient.data)
 
         shape = self.signal.axes_manager.signal_shape
         # if only one g, append nul phase
-        if len(phase_derivative) == 1:
-            phase_derivative.append([np.zeros(np.multiply(*shape)) for i in range(2)])
+        if len(phase_grad) == 1:
+            phase_grad.append([np.zeros(np.multiply(*shape)) for i in range(2)])
 
-        self._derivative_matrix = np.array(phase_derivative)
+        return np.array(phase_grad)
 
     def calculate_strain(self, angle=None):
         """
@@ -261,10 +245,8 @@ class GeometricalPhaseAnalysisTool:
         See equation (42) in Hytch et al. Ultramicroscopy 1998
 
         """
-        if self._derivative_matrix is None:
-            self._calculate_derivative_matrix()
 
-        e = self._a_matrix() @ self._derivative_matrix / (-2*np.pi)
+        e = self._a_matrix() @ self._get_grad_phase_array() / (-2*np.pi)
 
         if angle is not None:
             self.angle = angle

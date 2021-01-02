@@ -16,13 +16,16 @@ gpa_tool.set_fft(True)
 
 gpa_tool.plot_fft(True)
 
-gpa_tool.add_rois([[4.7, 0.0, 1.5], [0.0, -4.7, 1.5]])
+# Add ROIs for the two g_vectors
+g_rois = [[4.7, 0.0, 1.5], [0.0, -4.7, 1.5]]
+gpa_tool.add_rois(g_rois)
 gpa_tool.calculate_phase()
 
+# Add refinement ROI and refine phase
 refinement_roi = [1., 5., 12., 24.]
 gpa_tool.set_refinement_roi(refinement_roi)
+gpa_tool.refine_phase()
 
-gpa_tool.plot_phase()
-
+# Calculate and plot strain
 gpa_tool.calculate_strain()
 gpa_tool.plot_strain()

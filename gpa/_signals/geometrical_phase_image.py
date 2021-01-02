@@ -3,7 +3,6 @@
 # Copyright (c) 2020, Eric Prestat
 # All rights reserved.
 
-import numpy as np
 from hyperspy._signals.signal2d import Signal2D
 from hyperspy.roi import BaseROI
 
@@ -17,6 +16,7 @@ class GeometricalPhaseImage(Signal2D):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._gradient = None
 
     def plot_refinement_roi(self, roi=None):
         """
@@ -35,85 +35,38 @@ class GeometricalPhaseImage(Signal2D):
                                  f"Provided ROI: {roi}")
 
         if self._plot is not None or not self._plot.is_active:
-            print('here')
             roi.add_widget(self, self.axes_manager.signal_axes)
 
-    def refine_phase(self, fft, roi, refinement_roi, normalise=True,
-                     inplace=True, unwrap=True):
+    def refine_phase(self, refinement_roi):
         """
         Refine the geometrical phase by calculing the gradient of the phase in
-        the area defined by the roi and substracting the median of the gradient
+        the area defined by the roi and substracting the average of the gradient
         to the phase.
 
-        Parameters
-        ----------
-        inplace : bool, optional
-            DESCRIPTION. The default is True.
-
         """
+        if self._gradient is None:
+            raise RuntimeError("Gradient needs to be calculated first.")
 
-        # Take the gradient of the area defined by the ROI
-        data = refinement_roi(self).data
-        # Take the average of the gradient phase
-        grad_phase = gradient_phase(data)
-        g1_r = np.sum(grad_phase, axis=0) / (2 * np.pi)
+        correction = refinement_roi(self._gradient).mean(axis=[-2, -1])
+        self._gradient -= correction
 
-        correction_x = np.average(grad_phase[0])
-        correction_y = np.average(grad_phase[1])
+    def gradient(self):
+        """ Calculate the gradient of the phase.
 
-        print("correction", correction_x, correction_y)
-
-        roi.cx = roi.cx + correction_x
-        roi.cy = roi.cy + correction_y
-
-        self.metadata.set_item('GPA.phase_from_roi', str(roi))
-
-        data = np.angle(fft._bragg_filtering(roi, return_real=False, centre=True).data)
-
-        if inplace:
-            self.data = data
-            self.events.data_changed.trigger(self)
-        else:
-            return self._deepcopy_with_new_data(data)
-
-    def gradient(self, flatten=False):
-        """ Calculate the gradient of the phase
-
-        Parameters
-        ----------
-        flatten : float, default is False
-            If True, returns flattened array.
+        Returns
+        -------
+        gradient : Signal2D
 
         Notes
         -----
         Appendix D in Hytch et al. Ultramicroscopy 1998
         """
-
-        return gradient_phase(self.data, flatten=flatten)
-
-    def _get_phase_ramp(self):
-        """
-        Get the phase ramp corresponding to a g vector.
-
-        Parameters
-        ----------
-        g : numpy.ndarray
-            g vectors in calibrated units.
-
-        Returns
-        -------
-        numpy.ndarray
-
-        """
-        # Ramp over 2pi
-        shape = self.data.shape
-        x = np.arange(shape[0]) / shape[0] * 2 * np.pi
-        y = np.arange(shape[1]) / shape[1] * 2 * np.pi
-        xx, yy = np.meshgrid(x, y)
-
-        # convert to pixel unit
-        g_px = 2 * self.g_vector / self.axes_manager.signal_axes[0].scale / shape[0]
-        print("g_px", g_px)
-
-        # phase ramp corresponding to g vector
-        return g_px[0] * xx + g_px[1] * yy
+        # Unfortunatelly, BaseSignal.map doesn't work in this case, axes_manager
+        # set wrongly, we need to workaround it
+        self._gradient = Signal2D(gradient_phase(self.data), flatten=False)
+        for ax1, ax2 in zip(self._gradient.axes_manager.signal_axes,
+                            self.axes_manager.signal_axes):
+            ax1.scale = ax2.scale
+            ax1.offset = ax2.offset
+            ax1.units = ax1.units
+        return self._gradient
