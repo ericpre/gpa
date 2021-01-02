@@ -55,12 +55,18 @@ class GeometricalPhaseAnalysisTool:
     def _g_vector(self, g, calibrated=True):
         roi = self.rois[g]
         if calibrated:
-            factor = 1
+            # Use the roi values directly
+            factor = np.ones(2)
         else:
-            axis = self.fft.axes_manager[-1]
-            factor = axis.scale * axis.size
+            # needs to convert to pixel value, which is used to do the
+            # matrix calculation
+            factor = self._get_g_convertion_factor()
 
-        return np.array([roi.cx, roi.cy]) / factor
+        return np.array([roi.cx/factor[0], roi.cy/factor[1]])
+
+    def _get_g_convertion_factor(self):
+        return np.array([axis.scale * axis.size for axis in
+                         self.fft.axes_manager.signal_axes])
 
     @property
     def g_vectors_norm(self):
@@ -167,16 +173,18 @@ class GeometricalPhaseAnalysisTool:
         Adjust the gradient of the phase so that the strain in the reference
         area is zero.
 
-
         Returns
         -------
         None.
 
         """
-        for phase in self.phases.values():
+        for phase, roi in zip(self.phases.values(), self.rois.values()):
             if phase._gradient is None:
                 phase.gradient()
-            phase.refine_phase(self.refinement_roi)
+            g_refinement = phase.refine_phase(self.refinement_roi)
+            g_refinement *= self._get_g_convertion_factor()
+            roi.cx -= g_refinement.data[0]
+            roi.cy -= g_refinement.data[1]
 
     def calculate_displacement(self, angle=None):
         """

@@ -3,6 +3,7 @@
 # Copyright (c) 2020, Eric Prestat
 # All rights reserved.
 
+import numpy as np
 from hyperspy._signals.signal2d import Signal2D
 from hyperspy.roi import BaseROI
 
@@ -43,12 +44,20 @@ class GeometricalPhaseImage(Signal2D):
         the area defined by the roi and substracting the average of the gradient
         to the phase.
 
+        Returns
+        -------
+        g_refinement : BaseSignal
+            The shift in g corresponding to the change in phase reference.
+
         """
         if self._gradient is None:
             raise RuntimeError("Gradient needs to be calculated first.")
 
-        correction = refinement_roi(self._gradient).mean(axis=[-2, -1])
-        self._gradient -= correction
+        # Refine the gradient of the phase
+        grad_refinement = refinement_roi(self._gradient).mean(axis=[-2, -1])
+        self._gradient -= grad_refinement
+
+        return grad_refinement / (-2*np.pi)
 
     def gradient(self):
         """ Calculate the gradient of the phase.
@@ -68,5 +77,5 @@ class GeometricalPhaseImage(Signal2D):
                             self.axes_manager.signal_axes):
             ax1.scale = ax2.scale
             ax1.offset = ax2.offset
-            ax1.units = ax1.units
+            ax1.units = ax2.units
         return self._gradient
