@@ -119,3 +119,25 @@ def test_gpa2D_angle(gpa_tool, rois):
                                np.array([[ 0.05650816, -0.032625],
                                          [-0.03525, -0.06105479]]))
 
+
+def test_refine_phase(gpa_tool, rois, refinement_roi, refinement_roi_args):
+    gpa_tool.add_rois(rois)
+    gpa_tool.calculate_phase()
+
+    gpa_tool.set_refinement_roi(refinement_roi_args)
+    gpa_tool.refine_phase()
+    np.testing.assert_allclose(gpa_tool.g_vectors()['g1'],
+                               np.array([4.8057, 0.0]), atol=5E-3)
+    np.testing.assert_allclose(gpa_tool.g_vectors()['g2'],
+                               np.array([0.0, -4.634]), atol=5E-3)
+
+    gpa_tool.calculate_strain()
+
+    ref_area_strain = refinement_roi(gpa_tool.e_xx).data.mean()
+    np.testing.assert_almost_equal(ref_area_strain, 1E-8)
+
+    strained_area_roi_args = [4.5, 0.2, 7.2, 7.2]
+    strained_area_roi = hs.roi.RectangularROI(*strained_area_roi_args)
+    strain_area = strained_area_roi(gpa_tool.e_xx).data.mean()
+    # strain error due to sampling, larger number of pixels would improve
+    np.testing.assert_almost_equal(strain_area, 0.0974, decimal=3)

@@ -5,9 +5,11 @@
 import matplotlib
 matplotlib.use('agg')
 
+import hyperspy.api as hs
 import pytest
 
 import gpa.api as gpa
+
 
 @pytest.fixture
 def rois():
@@ -24,3 +26,17 @@ def gpa_tool():
     gpa_tool.set_fft(True)
 
     return gpa_tool
+
+
+@pytest.fixture
+def refinement_roi_args():
+    refinement_roi_args = [0.1, 0.1, 3.4, 7.]
+
+    return refinement_roi_args
+
+
+@pytest.fixture
+def refinement_roi(refinement_roi_args):
+    refinement_roi = hs.roi.RectangularROI(*refinement_roi_args)
+
+    return refinement_roi

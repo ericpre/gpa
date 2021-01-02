@@ -19,7 +19,7 @@ class GeometricalPhaseImage(Signal2D):
         super().__init__(*args, **kwargs)
         self._gradient = None
 
-    def plot_refinement_roi(self, roi=None):
+    def plot_refinement_roi(self, roi):
         """
         Add a roi to the figure to define the refinement area.
 
@@ -30,10 +30,9 @@ class GeometricalPhaseImage(Signal2D):
             added. The default is None.
 
         """
-        if roi is not None:
-            if not isinstance(roi, BaseROI):
-                raise ValueError("A valid hyperspy ROI must be provided. "
-                                 f"Provided ROI: {roi}")
+        if not isinstance(roi, BaseROI):
+            raise ValueError("A valid hyperspy ROI must be provided. "
+                             f"Provided ROI: {roi}")
 
         if self._plot is not None or not self._plot.is_active:
             roi.add_widget(self, self.axes_manager.signal_axes)

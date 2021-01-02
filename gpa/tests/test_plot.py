@@ -36,7 +36,20 @@ def test_plot_gpa2D(gpa_tool, rois, angle):
         c._plot.close()
 
 
-def test_plot_phase_refinement_roi(gpa_tool, rois):
+def test_plot_phase_refinement_roi(gpa_tool, rois, refinement_roi):
+    gpa_tool.add_rois(rois[:1])
+    gpa_tool.calculate_phase()
+    phase = gpa_tool.phases['g1']
+    with pytest.raises(ValueError):
+        phase.plot_refinement_roi(rois[0])
+
+    phase.plot()
+    assert phase._plot is not None
+    assert phase._plot.is_active
+    phase.plot_refinement_roi(refinement_roi)
+
+
+def test_plot_refinement_roi(gpa_tool, rois):
     gpa_tool.add_rois(rois)
     gpa_tool.calculate_phase()
 
