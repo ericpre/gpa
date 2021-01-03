@@ -25,9 +25,8 @@ class GeometricalPhaseImage(Signal2D):
 
         Parameters
         ----------
-        roi : ROI, optional
-            ROI defining the refinement area. If None, a RectangularROI is
-            added. The default is None.
+        roi : ROI
+            ROI defining the refinement area.
 
         """
         if not isinstance(roi, BaseROI):
@@ -39,9 +38,15 @@ class GeometricalPhaseImage(Signal2D):
 
     def refine_phase(self, refinement_roi):
         """
-        Refine the geometrical phase by calculing the gradient of the phase in
-        the area defined by the roi and substracting the average of the gradient
-        to the phase.
+        Refine the geometrical phase by calculating the geometrical mean of the
+        gradient of the phase in the area defined by the refinement roi and
+        substracting it to the gradient of the phase.
+
+        Parameters
+        ----------
+        refinement_roi : hyperspy ROI
+            The area used to refine to calculate the geometrical mean of the
+            gradient of the phase.
 
         Returns
         -------

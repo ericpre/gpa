@@ -42,13 +42,45 @@ class GeometricalPhaseAnalysisTool:
         self.theta = None
         self.omega = None
 
-    def set_phase(self, *phases):
+    def _set_phase(self, *phases):
+        """
+        Set the geomatrical phases images to be used for the analysis.
+
+        Parameters
+        ----------
+        phases : GeometricalPhaseImage or list of GeometricalPhaseImage
+            Phase to be used for the analysis.
+
+        Returns
+        -------
+        None.
+
+        """
         for i, phase in enumerate(phases, start=1):
             key = f'g{i}'
             phase.metadata.General.title = f'{key} reduced Phase'
             self.phases[key] = phase
 
     def g_vectors(self, calibrated=True):
+        """
+        g-vectors corresponding to the geometrical phase image(s) projected.
+        The coordinate are defined with the respect to the horizonal and
+        vertical axes.
+
+        Parameters
+        ----------
+        calibrated : bool, optional
+            If True, the g-vectors are in calibrated units (typically 1/nm),
+            otherwise, they are in pixel normalised by the number of pixels of
+            the image. The default is True.
+
+        Returns
+        -------
+        dict
+            Dictionary containing the g-vectors corresponding to each phase
+            image.
+
+        """
         return {g:self._g_vector(g, calibrated=calibrated)
                 for g in self.rois.keys()}
 
@@ -68,25 +100,50 @@ class GeometricalPhaseAnalysisTool:
         return np.array([axis.scale * axis.size for axis in
                          self.fft.axes_manager.signal_axes])
 
-    @property
-    def g_vectors_norm(self):
-        return {g:np.linalg.norm(g) for g in ['g1', 'g2']}
-
     def set_fft(self, *args, **kwargs):
+        """
+        Calculate the FFT of the signal.
+
+        Parameters
+        ----------
+        *args, **kwargs
+            The positional and keywords argument are passed to the `fft`
+            method of the hyperspy Signal2D.
+
+        Returns
+        -------
+        None.
+
+        """
         self.fft = self.signal.fft(*args, **kwargs)
 
     def plot_fft(self, *args, **kwargs):
+        """
+        Plot the FFT of the signal. As a convenience, only the central part of
+        the FFT is displayed.
+
+        Parameters
+        ----------
+        *args, **kwargs
+            The positional and keywords argument are passed to the plot method
+            of the hyperspy Signal2D.
+
+        Returns
+        -------
+        None.
+
+        """
         self.fft.plot(*args, **kwargs)
-        ax = plt.gca()
         signal_axes = self.fft.axes_manager.signal_axes
         start = [relative2value(axis, 3/8) for axis in signal_axes]
         end = [relative2value(axis, 1 - 3/8) for axis in signal_axes]
 
+        ax = self.fft._plot.signal_plot.ax
         ax.set_xlim(start[0], end[0])
         # hyperspy image plotting start from top
         ax.set_ylim(-start[1], -end[1])
 
-    def add_roi(self, g, *args):
+    def _add_roi(self, g, *args):
         self.rois[g] = hs.roi.CircleROI(*args)
         if self.fft is None:
             raise RuntimeError("The Fourier Transform must be computed first.")
@@ -136,9 +193,25 @@ class GeometricalPhaseAnalysisTool:
             roi_args = [[roi_args, 0, 2],
                         [0, roi_args, 2]]
         for i, args in enumerate(roi_args, start=1):
-            self.add_roi(f'g{i}', *args)
+            self._add_roi(f'g{i}', *args)
 
     def set_refinement_roi(self, roi=None):
+        """
+        Set the area where the phase is refined. If the phases are displayed,
+        the ROI is added on the phase figure.
+
+        Parameters
+        ----------
+        roi : hyperspy ROI or list of float or None, optional
+            If list of float, a rectangular ROI is created and the list of
+            float is used to initialised the ROI. If None, a rectangular ROI
+            is set in the middle of the image. The default is None.
+
+        Returns
+        -------
+        None.
+
+        """
         if roi is None:
             roi = self._get_default_refinement_roi()
         elif not isinstance(roi, BaseROI):
@@ -158,12 +231,41 @@ class GeometricalPhaseAnalysisTool:
         return RectangularROI(*start, *end)
 
     def calculate_phase(self):
-        self.set_phase(*[self.fft.get_phase_from_roi(roi, reduced=True)
-                         for roi in self.rois.values()])
+        """
+        Calculate the phase for each g-vector previously set.
 
-    def plot_phase(self, refinement_roi=True):
+        Returns
+        -------
+        None.
+
+        """
+        self._set_phase(*[self.fft.get_phase_from_roi(roi, reduced=True)
+                          for roi in self.rois.values()])
+
+    def plot_phase(self, refinement_roi=True, **kwargs):
+        """
+        Plot the phase for each g-vector previously set.
+
+        Parameters
+        ----------
+        refinement_roi : bool, optional
+            If True, also add the refinement ROI. If no refinement ROI have
+            been previously, a rectangular ROI is added in the middle of the
+            image. The default is True.
+
+        **kwargs
+            The keywords argument are passed to the plot method of the hyperspy
+            Signal2D.
+
+        Returns
+        -------
+        None.
+
+        """
         for phase in self.phases.values():
-            phase.plot(cmap='viridis')
+            if 'cmap' not in kwargs:
+                kwargs['cmap'] = 'viridis'
+            phase.plot(**kwargs)
 
             if refinement_roi:
                 if self.refinement_roi is None:
@@ -294,6 +396,27 @@ class GeometricalPhaseAnalysisTool:
         self.omega.metadata.Signal.quantity = r"$\omega$"
 
     def plot_strain(self, components=None, same_figure=True, **kwargs):
+        """
+        Convenient method to plot the strain maps.
+
+        Parameters
+        ----------
+        components : list of string, optional
+            Name of the strain component ('e_xx', 'eyy', etc.) to plot.
+            The default is None.
+        same_figure : bool, optional
+            IF True, plot the strain components on the same figure.
+            The default is True.
+        **kwargs
+            If same_figure=True, the keyword argument are passed to the
+            hs.plot.plot_images hyperspy method, Othewise, they are passed to
+            the plot method of Signal2D.
+
+        Returns
+        -------
+        None.
+
+        """
         # Set default value
         for key, value in zip(['cmap', 'vmin', 'vmax'],
                               ['viridis', '1th', '99th']):
@@ -369,6 +492,9 @@ class GeometricalPhaseAnalysisTool:
         loc : str or int
             Matplotlib loc parameter, see for example the documentation of the
             `plt.legend` function.
+        labels : list of string or None
+            Labels of the g-vectors. The list must be of the same length as the
+            number of vectors. If None, set 'g1', 'g2', etc as labels.
         scaling_factor : float
             Factor defined the width of the basis vectors relative to the
             width of the image.
