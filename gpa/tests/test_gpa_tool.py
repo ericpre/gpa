@@ -141,3 +141,32 @@ def test_refine_phase(gpa_tool, rois, refinement_roi, refinement_roi_args):
     strain_area = strained_area_roi(gpa_tool.e_xx).data.mean()
     # strain error due to sampling, larger number of pixels would improve
     np.testing.assert_almost_equal(strain_area, 0.0974, decimal=3)
+
+
+def test_refine_phase_default(gpa_tool, rois):
+    gpa_tool.add_rois(rois)
+    gpa_tool.calculate_phase()
+
+    with pytest.raises(RuntimeError):
+        gpa_tool.refine_phase()
+
+    gpa_tool.set_refinement_roi()
+    assert isinstance(gpa_tool.refinement_roi, hs.roi.RectangularROI)
+    assert gpa_tool.refinement_roi.left == 1.91625
+    assert gpa_tool.refinement_roi.top == 1.91625
+    assert gpa_tool.refinement_roi.right == 5.74875
+    assert gpa_tool.refinement_roi.bottom == 5.74875
+
+
+def test_refine_phase_default_plot_phase(gpa_tool, rois):
+    gpa_tool.add_rois(rois)
+    gpa_tool.calculate_phase()
+    gpa_tool.plot_phase()
+
+    assert isinstance(gpa_tool.refinement_roi, hs.roi.RectangularROI)
+    assert gpa_tool.refinement_roi.left == 1.91625
+    assert gpa_tool.refinement_roi.top == 1.91625
+    assert gpa_tool.refinement_roi.right == 5.74875
+    assert gpa_tool.refinement_roi.bottom == 5.74875
+    gpa_tool.refine_phase()
+

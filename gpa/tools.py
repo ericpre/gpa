@@ -138,8 +138,10 @@ class GeometricalPhaseAnalysisTool:
         for i, args in enumerate(roi_args, start=1):
             self.add_roi(f'g{i}', *args)
 
-    def set_refinement_roi(self, roi):
-        if not isinstance(roi, BaseROI):
+    def set_refinement_roi(self, roi=None):
+        if roi is None:
+            roi = self._get_default_refinement_roi()
+        elif not isinstance(roi, BaseROI):
             roi = hs.roi.RectangularROI(*roi)
 
         self.refinement_roi = roi
@@ -170,14 +172,22 @@ class GeometricalPhaseAnalysisTool:
 
     def refine_phase(self):
         """
-        Adjust the gradient of the phase so that the strain in the reference
-        area is zero.
+        Refine the gradient of the phase so that the strain in the reference
+        area is zero. The corresponding g-vector is adjusted accordingly.
 
         Returns
         -------
         None.
 
+        Raises
+        ------
+        RuntimeError
+            When the refinement ROI is not set. Use the `plot_phase` or the
+            `set_refinement_roi` method to set them.
+
         """
+        if self.refinement_roi is None:
+            raise RuntimeError("The refinement ROI needs to be set first.")
         for phase, roi in zip(self.phases.values(), self.rois.values()):
             if phase._gradient is None:
                 phase.gradient()
