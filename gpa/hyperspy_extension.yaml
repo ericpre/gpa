@@ -9,18 +9,18 @@ signals:
     signal_dimension: 2
     dtype: real
     lazy: False
-    module: gpa._signals.atomic_resolution
+    module: gpa.signals.atomic_resolution
 
   AtomicResolutionFFT:
     signal_type: spectral_domain
     signal_dimension: 2
     dtype: complex
     lazy: False
-    module: gpa._signals.atomic_resolution
+    module: gpa.signals.atomic_resolution
 
   GeometricalPhaseImage:
     signal_type: geometrical_phase
     signal_dimension: 2
     dtype: real
     lazy: False
-    module: gpa._signals.geometrical_phase_image
+    module: gpa.signals.geometrical_phase_image

@@ -5,3 +5,8 @@
 
 from gpa.datasets.utils import (get_atomic_resolution,
                                 get_atomic_resolution_interface)
+
+__all__ = [
+    "get_atomic_resolution",
+    "get_atomic_resolution_interface",
+]

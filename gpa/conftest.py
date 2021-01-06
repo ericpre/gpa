@@ -8,7 +8,7 @@ matplotlib.use('agg')
 import hyperspy.api as hs
 import pytest
 
-import gpa.api as gpa
+import gpa
 
 
 @pytest.fixture

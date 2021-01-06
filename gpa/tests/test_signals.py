@@ -7,7 +7,7 @@ import hyperspy.api as hs
 import numpy as np
 import pytest
 
-import gpa.api as gpa
+import gpa
 
 
 def test_atomic_resolution_signal():

@@ -3,7 +3,7 @@
 # Copyright (c) 2020, Eric Prestat
 # All rights reserved.
 
-import gpa.api as gpa
+import gpa
 
 s = gpa.datasets.get_atomic_resolution_interface(size=2048, spacing=14, strain=-0.1)
 s.add_gaussian_noise(100)

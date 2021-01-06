@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 import hyperspy.api as hs
 
-import gpa.api as gpa
+import gpa
 
 
 def assert_g_a_matrices_product(g_matrix, a_matrix):
