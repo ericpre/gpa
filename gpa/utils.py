@@ -9,6 +9,18 @@ from hyperspy.signal import BaseSignal
 from hyperspy.roi import CircleROI
 
 
+def get_array_module(array):
+    module = np
+    try:
+        import cupy as cp
+        if isinstance(array, cp.ndarray):
+            module = cp
+    except ImportError:
+        pass
+
+    return module
+
+
 def relative2value(axis, relative):
     """
     Return the value corresponding to the relative coordinate on a
@@ -93,6 +105,10 @@ def get_mask_from_roi(signal, roi, axes=None, gaussian=True):
             mask_circle = gr > roi.r**2
 
         mask.isig[slices] = mask_circle
+
+        # If signal.data is cupy array, transfer the array to the GPU
+        xp = get_array_module(signal.data)
+        mask.data = xp.asarray(mask.data)
 
     return mask
 
