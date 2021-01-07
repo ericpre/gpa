@@ -11,6 +11,13 @@ signals:
     lazy: False
     module: gpa.signals.atomic_resolution
 
+  ComplexAtomicResolution:
+    signal_type: atomic_resolution
+    signal_dimension: 2
+    dtype: real
+    lazy: False
+    module: gpa.signals.atomic_resolution
+
   AtomicResolutionFFT:
     signal_type: spectral_domain
     signal_dimension: 2

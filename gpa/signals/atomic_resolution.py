@@ -28,6 +28,11 @@ class AtomicResolution(Signal2D):
         return fft
 
 
+class ComplexAtomicResolution(AtomicResolution):
+
+    _dtype = 'complex'
+
+
 class AtomicResolutionFFT(ComplexSignal2D):
     """
     Attributes
