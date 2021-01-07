@@ -29,20 +29,48 @@ class AtomicResolution(Signal2D):
 
 
 class AtomicResolutionFFT(ComplexSignal2D):
+    """
+    Attributes
+    ----------
+
+    rois : dict
+        Dictionary containing HyperSpy ROI for each g.
+    """
+
 
     signal_type = 'spectral_domain'
     _signal_dimension = 2
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.roi = {}
+        self.rois = {}
 
     def _bragg_filtering(self, roi, return_real, centre=False, gaussian=True):
+        """
+        Perform Bragg filtering from a circle ROI.
+
+        Parameters
+        ----------
+        roi : CircleROI
+            ROI used to define the Bragg filter in the spectral domain..
+        return_real : bool
+            If True, return real value, otherwise complex value.
+        centre : bool, optional
+            Centre the ROI in the spectral domain to subtract the central
+            frequency component of the ROI.
+        gaussian : bool, optional
+            Apply Gaussian smoothing to the edge of the ROI.
+
+        Returns
+        -------
+        Signal2D or ComplexSignal2D
+            Bragg filtered image of the spectra component defined by the ROI.
+
+        """
         # Add gaussian mask
         mask = get_mask_from_roi(self, roi, gaussian)
         # check inplace, out, multi-dimensional. etc.
         signal = self * mask
-        signal.set_signal_type(self.signal_type)
 
         shifted = self.metadata.Signal.FFT.shifted
         if centre:
@@ -52,7 +80,10 @@ class AtomicResolutionFFT(ComplexSignal2D):
                 shift = int(zero_frequency_index - axis.value2index(value))
                 signal.data = np.roll(signal.data, shift, axis.index_in_array)
 
-        return signal.ifft(shift=shifted, return_real=return_real)
+        signal = signal.ifft(shift=shifted, return_real=return_real)
+        signal.set_signal_type('atomic_resolution')
+
+        return signal
 
     def bragg_filtering(self, roi):
         """
@@ -65,8 +96,8 @@ class AtomicResolutionFFT(ComplexSignal2D):
 
         Returns
         -------
-        signal : Signal2D
-            Bragg filtered image.
+        Signal2D or ComplexSignal2D
+            Bragg filtered image of the spectra component defined by the ROI.
 
         """
         signal = self._bragg_filtering(roi, return_real=True)
@@ -74,7 +105,7 @@ class AtomicResolutionFFT(ComplexSignal2D):
 
         return signal
 
-    def get_phase_from_roi(self, roi, reduced=False):
+    def get_phase_from_roi(self, roi, reduced=False, name='g'):
         """
         Get the geometrical phase of the area defined by the provided ROI.
 
@@ -93,18 +124,29 @@ class AtomicResolutionFFT(ComplexSignal2D):
             Geometrical phase as defined by the ROI.
 
         """
+        phase = self._bragg_filtering(roi, return_real=False)
 
-        phase = self._bragg_filtering(roi, return_real=False, centre=reduced)
-        phase.data = np.angle(phase.data)
-        phase._dtype = 'real'
+        if reduced:
+            phase = phase.unwrapped_phase(show_progressbar=False)
+            g_vector_px = np.array(roi[:2]) / self._get_g_convertion_factor()
+            phase.data -= self._calculate_phase_from_g(g_vector_px)
+        else:
+            phase.data = np.angle(phase)
+
         phase.set_signal_type('geometrical_phase')
         phase.g_vector = vector_from_roi(roi)
-        phase.metadata.General.title = 'Phase image'
-        phase.metadata.set_item('GPA.phase_from_roi', str(roi))
-
-        if self.roi.get('g1') is None:
-            self.roi['g1'] = roi
-        elif self.roi.get('g2') is None:
-            self.roi['g2'] = roi
+        title = 'Reduced phase image' if reduced else 'Phase image'
+        phase.metadata.General.title = title
+        phase.metadata.set_item('GPA.phase_from_roi', f'{roi}')
 
         return phase
+
+    def _calculate_phase_from_g(self, g):
+        shape = self.axes_manager.signal_shape
+        R_x, R_y = np.meshgrid(np.arange(0, shape[0]), np.arange(0, shape[1]))
+
+        return 2 * np.pi * ((R_x * g[0]) + (R_y * g[1]))
+
+    def _get_g_convertion_factor(self):
+        return np.array([axis.scale * axis.size for axis in
+                         self.axes_manager.signal_axes])

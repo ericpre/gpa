@@ -33,7 +33,7 @@ class GeometricalPhaseImage(Signal2D):
             raise ValueError("A valid hyperspy ROI must be provided. "
                              f"Provided ROI: {roi}")
 
-        if self._plot is not None or not self._plot.is_active:
+        if self._plot is not None and self._plot.is_active:
             roi.add_widget(self, self.axes_manager.signal_axes)
 
     def refine_phase(self, refinement_roi):

@@ -17,16 +17,17 @@ from gpa.drawing import VectorBasis
 
 
 # TODO:
-# - speeding up gradient calculation?
 # - sync radius ROI
 # - add ROI to plot if rois already exists, when plotting fft
+# - refactor phase refinement/phase calculation to be able to update the phase
+#   in place.
 
 
 class GeometricalPhaseAnalysisTool:
 
     def __init__(self, signal):
         self.signal = signal
-        self.fft = None
+        self.fft_signal = None
         self.rois = {}
         self.refinement_roi = None
         self.phases = {}
@@ -93,13 +94,9 @@ class GeometricalPhaseAnalysisTool:
         else:
             # needs to convert to pixel value, which is used to do the
             # matrix calculation
-            factor = self._get_g_convertion_factor()
+            factor = self.fft_signal._get_g_convertion_factor()
 
-        return np.array([roi.cx/factor[0], roi.cy/factor[1]])
-
-    def _get_g_convertion_factor(self):
-        return np.array([axis.scale * axis.size for axis in
-                         self.fft.axes_manager.signal_axes])
+        return np.array(roi[:2]) / factor
 
     def set_fft(self, *args, **kwargs):
         """
@@ -116,7 +113,7 @@ class GeometricalPhaseAnalysisTool:
         None.
 
         """
-        self.fft = self.signal.fft(*args, **kwargs)
+        self.fft_signal = self.signal.fft(*args, **kwargs)
 
     def plot_fft(self, *args, **kwargs):
         """
@@ -134,22 +131,26 @@ class GeometricalPhaseAnalysisTool:
         None.
 
         """
-        self.fft.plot(*args, **kwargs)
-        signal_axes = self.fft.axes_manager.signal_axes
+        self.fft_signal.plot(*args, **kwargs)
+        signal_axes = self.fft_signal.axes_manager.signal_axes
         start = [relative2value(axis, 3/8) for axis in signal_axes]
         end = [relative2value(axis, 1 - 3/8) for axis in signal_axes]
 
-        ax = self.fft._plot.signal_plot.ax
+        ax = self.fft_signal._plot.signal_plot.ax
         ax.set_xlim(start[0], end[0])
         # hyperspy image plotting start from top
         ax.set_ylim(-start[1], -end[1])
 
+        for roi in self.rois.values():
+            roi.add_widget(self.fft_signal,
+                           axes=self.fft_signal.axes_manager.signal_axes)
+
     def _add_roi(self, g, *args):
         self.rois[g] = hs.roi.CircleROI(*args)
-        if self.fft is None:
+        if self.fft_signal is None:
             raise RuntimeError("The Fourier Transform must be computed first.")
-        if self.fft._plot is not None:
-            self.rois[g].interactive(self.fft)
+        if self.fft_signal._plot is not None:
+            self.rois[g].interactive(self.fft_signal)
 
     def add_rois(self, roi_args=None):
         """
@@ -240,8 +241,8 @@ class GeometricalPhaseAnalysisTool:
         None.
 
         """
-        self._set_phase(*[self.fft.get_phase_from_roi(roi, reduced=True)
-                          for roi in self.rois.values()])
+        self._set_phase(*[self.fft_signal.get_phase_from_roi(roi, True, g)
+                          for g, roi in self.rois.items()])
 
     def plot_phase(self, refinement_roi=True, **kwargs):
         """
@@ -268,9 +269,7 @@ class GeometricalPhaseAnalysisTool:
                 kwargs['cmap'] = 'viridis'
             phase.plot(**kwargs)
 
-            if refinement_roi:
-                if self.refinement_roi is None:
-                    self.refinement_roi = self._get_default_refinement_roi()
+            if refinement_roi and self.refinement_roi is not None:
                 phase.plot_refinement_roi(self.refinement_roi)
 
     def refine_phase(self):
@@ -295,7 +294,7 @@ class GeometricalPhaseAnalysisTool:
             if phase._gradient is None:
                 phase.gradient()
             g_refinement = phase.refine_phase(self.refinement_roi)
-            g_refinement *= self._get_g_convertion_factor()
+            g_refinement *= self.fft_signal._get_g_convertion_factor()
             roi.cx -= g_refinement.data[0]
             roi.cy -= g_refinement.data[1]
 
@@ -373,11 +372,11 @@ class GeometricalPhaseAnalysisTool:
             self.angle = angle
             e = rotate_strain_tensor(angle, e[0, 0], e[1, 1], e[1, 0], e[0, 1])
 
-        shape = self.signal.axes_manager.signal_shape
-        e_xx = e[0, 0].reshape(shape)
-        e_yy = e[1, 1].reshape(shape)
-        e_yx = e[1, 0].reshape(shape)
-        e_xy = e[0, 1].reshape(shape)
+        shape = self.signal.axes_manager.signal_shape[::-1]
+        e_xx = e[0, 0].T.reshape(shape)
+        e_yy = e[1, 1].T.reshape(shape)
+        e_yx = e[1, 0].T.reshape(shape)
+        e_xy = e[0, 1].T.reshape(shape)
 
         axes_list = list(self.signal.axes_manager.as_dictionary().values())
         self.e_xx = hs.signals.Signal2D(e_xx, axes=axes_list)
