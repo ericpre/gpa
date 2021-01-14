@@ -401,11 +401,12 @@ class GeometricalPhaseAnalysisTool:
 
         Parameters
         ----------
-        components : list of string, optional
-            Name of the strain component ('e_xx', 'eyy', etc.) to plot.
+        components : list of string or None, optional
+            Name of the strain component ('e_xx', 'eyy', etc.) to plot. If None,
+            the 'e_xx', 'e_yy' and 'omega' strain component will be plotted.
             The default is None.
         same_figure : bool, optional
-            IF True, plot the strain components on the same figure.
+            If True, plot the strain components on the same figure.
             The default is True.
         **kwargs
             If same_figure=True, the keyword argument are passed to the
@@ -417,9 +418,17 @@ class GeometricalPhaseAnalysisTool:
         None.
 
         """
-        # Set default value
-        for key, value in zip(['cmap', 'vmin', 'vmax'],
-                              ['viridis', '1th', '99th']):
+        default_values = {'cmap':'viridis',
+                          'vmin':'1th',
+                          'vmax':'99th',
+                          }
+        if same_figure:
+            default_values.update({'per_row': 3,
+                                   'colorbar': 'single',
+                                   'scalebar': [0],
+                                   'axes_decor': None})
+        # Set default values
+        for key, value in default_values.items():
             if key not in kwargs.keys():
                 kwargs[key] = value
         if components is None:
@@ -428,10 +437,8 @@ class GeometricalPhaseAnalysisTool:
             components = [components]
         if same_figure:
             signals = [getattr(self, component) for component in components]
-            fig = plt.figure(figsize=(12, 4.8))
-            axs = hs.plot.plot_images(signals, per_row=3, label='titles',
-                                      colorbar='single', scalebar=[0],
-                                      axes_decor=None, fig=fig, **kwargs)
+            fig = kwargs.get('fig', plt.figure(figsize=(12, 4.8)))
+            axs = hs.plot.plot_images(signals, fig=fig, **kwargs)
             self.plot_vector_basis(ax=axs[-1], labels=['x', 'y'], animated=False)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", category=UserWarning)
