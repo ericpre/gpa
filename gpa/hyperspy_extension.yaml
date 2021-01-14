@@ -14,7 +14,7 @@ signals:
   ComplexAtomicResolution:
     signal_type: atomic_resolution
     signal_dimension: 2
-    dtype: real
+    dtype: complex
     lazy: False
     module: gpa.signals.atomic_resolution
 

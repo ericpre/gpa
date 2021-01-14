@@ -28,9 +28,9 @@ class AtomicResolution(Signal2D):
         return fft
 
 
-class ComplexAtomicResolution(AtomicResolution):
+class ComplexAtomicResolution(ComplexSignal2D, AtomicResolution):
 
-    _dtype = 'complex'
+    pass
 
 
 class AtomicResolutionFFT(ComplexSignal2D):
