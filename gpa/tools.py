@@ -7,14 +7,13 @@ import warnings
 
 import numpy as np
 import matplotlib.pyplot as plt
-
 import hyperspy.api as hs
 from hyperspy.misc.utils import to_numpy
 from hyperspy.roi import BaseROI, RectangularROI
 import pint
 
+from gpa.drawing import add_vector_basis
 from gpa.utils import relative2value, rotation_matrix, rotate_strain_tensor
-from gpa.drawing import VectorBasis
 
 
 # TODO:
@@ -369,6 +368,7 @@ class GeometricalPhaseAnalysisTool:
         See equation (42) in Hytch et al. Ultramicroscopy 1998
 
         """
+        from gpa.signals import StrainComponent
 
         e = self._a_matrix() @ self._get_grad_phase_array() / (-2*np.pi)
 
@@ -384,21 +384,26 @@ class GeometricalPhaseAnalysisTool:
         e_xy = e[0, 1].T.reshape(shape)
 
         axes_list = list(self.signal.axes_manager.as_dictionary().values())
-        self.e_xx = hs.signals.Signal2D(e_xx, axes=axes_list)
+        self.e_xx = StrainComponent(e_xx, axes=axes_list)
         self.e_xx.metadata.General.title = r"$\epsilon_{xx}$"
         self.e_xx.metadata.Signal.quantity = r"$\epsilon_{xx}$"
 
-        self.e_yy = hs.signals.Signal2D(e_yy, axes=axes_list)
+        self.e_yy = StrainComponent(e_yy, axes=axes_list)
         self.e_yy.metadata.General.title = r"$\epsilon_{yy}$"
         self.e_yy.metadata.Signal.quantity = r"$\epsilon_{yy}$"
 
-        self.theta = hs.signals.Signal2D(0.5*(e_xy + e_yx), axes=axes_list)
+        self.theta = StrainComponent(0.5*(e_xy + e_yx), axes=axes_list)
         self.theta.metadata.General.title = r"$\theta$"
         self.theta.metadata.Signal.quantity = r"$\theta$"
 
-        self.omega = hs.signals.Signal2D(0.5*(e_xy - e_yx), axes=axes_list)
+        self.omega = StrainComponent(0.5*(e_xy - e_yx), axes=axes_list)
         self.omega.metadata.General.title = r"$\omega$"
         self.omega.metadata.Signal.quantity = r"$\omega$"
+
+        for name in ['e_xx', 'e_yy', 'theta', 'omega']:
+            component = getattr(self, name)
+            component.original_metadata.g_vectors = self._g_matrix(angle=angle)
+
 
     def plot_strain(self, components=None, same_figure=True, **kwargs):
         """
@@ -432,19 +437,24 @@ class GeometricalPhaseAnalysisTool:
                                    'colorbar': 'single',
                                    'scalebar': [0],
                                    'axes_decor': None})
+
         # Set default values
         for key, value in default_values.items():
             if key not in kwargs.keys():
                 kwargs[key] = value
+
         if components is None:
             components = ['e_xx', 'e_yy', 'omega']
         elif isinstance(components, str):
             components = [components]
+
+        vector_basis = self._g_matrix(normalised=True)
         if same_figure:
             signals = [getattr(self, component) for component in components]
             fig = kwargs.get('fig', plt.figure(figsize=(12, 4.8)))
             axs = hs.plot.plot_images(signals, fig=fig, **kwargs)
-            self.plot_vector_basis(ax=axs[-1], labels=['x', 'y'], animated=False)
+            add_vector_basis(vector_basis, ax=axs[-1], labels=['x', 'y'],
+                             animated=False)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", category=UserWarning)
                 plt.tight_layout(rect=[0, 0, 0.9, 1])
@@ -452,8 +462,8 @@ class GeometricalPhaseAnalysisTool:
             for component in components:
                 s = getattr(self, component)
                 s.plot(**kwargs)
-                self.plot_vector_basis(ax=s._plot.signal_plot.ax,
-                                       labels=['x', 'y'])
+                add_vector_basis(vector_basis, ax=s._plot.signal_plot.ax,
+                                 labels=['x', 'y'])
 
     def _a_matrix(self, calibrated=False):
         """
@@ -490,40 +500,3 @@ class GeometricalPhaseAnalysisTool:
             g_matrix = g_matrix / np.linalg.norm(g_matrix)
 
         return g_matrix
-
-    def plot_vector_basis(self, ax=None, loc='upper right', labels=None,
-                          scaling_factor=0.15, **kwargs):
-        """
-        Plot the vector basis defined by g1 and g2.
-
-        Parameters
-        ----------
-        ax : matplotlib subplot, optional
-            The matplotlib subplot the basis vectors will be plotted. If None,
-            the last subplot is used.
-            The default is None.
-        loc : str or int
-            Matplotlib loc parameter, see for example the documentation of the
-            `plt.legend` function.
-        labels : list of string or None
-            Labels of the g-vectors. The list must be of the same length as the
-            number of vectors. If None, set 'g1', 'g2', etc as labels.
-        scaling_factor : float
-            Factor defined the width of the basis vectors relative to the
-            width of the image.
-
-        Returns
-        -------
-        None.
-
-        """
-        if ax is None:
-            ax = plt.gca()
-
-        width = ax.images[0].get_extent()[1] - ax.images[0].get_extent()[0]
-        vectors = self._g_matrix(normalised=True) * width * scaling_factor / 2
-
-        if labels is None:
-            labels = [rf'g$_{i}$' for i in range(1, len(vectors)+1)]
-
-        VectorBasis(ax, vectors, labels=labels, loc=loc, **kwargs)

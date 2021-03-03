@@ -7,6 +7,9 @@ import numpy as np
 from matplotlib.offsetbox import AnchoredOffsetbox, AuxTransformBox
 from matplotlib.patches import FancyArrow
 from matplotlib.text import Text
+import matplotlib.pyplot as plt
+
+from hyperspy.misc.utils import to_numpy
 
 
 class VectorBasis:
@@ -101,3 +104,43 @@ class AnchoredBasisVector(AnchoredOffsetbox):
                 self.basis_vector.add_artist(label)
 
         AnchoredOffsetbox.__init__(self, loc, child=self.basis_vector)
+
+
+def add_vector_basis(vector_basis, ax=None, loc='upper right', labels=None,
+                     scaling_factor=0.15, **kwargs):
+    """
+    Add a vector basis defined to a matplotlib axis.
+
+    Parameters
+    ----------
+    vector_basis : numpy.ndarray
+        The vector basis.
+    ax : matplotlib subplot, optional
+        The matplotlib subplot the basis vectors will be plotted. If None,
+        the last subplot is used.
+        The default is None.
+    loc : str or int
+        Matplotlib loc parameter, see for example the documentation of the
+        `plt.legend` function.
+    labels : list of string or None
+        Labels of the g-vectors. The list must be of the same length as the
+        number of vectors. If None, set 'g1', 'g2', etc as labels.
+    scaling_factor : float
+        Factor defined the width of the basis vectors relative to the
+        width of the image.
+
+    Returns
+    -------
+    None.
+
+    """
+    if ax is None:
+        ax = plt.gca()
+
+    width = ax.images[0].get_extent()[1] - ax.images[0].get_extent()[0]
+    vectors = vector_basis * width * scaling_factor / 2
+
+    if labels is None:
+        labels = [rf'g$_{i}$' for i in range(1, len(vectors)+1)]
+
+    VectorBasis(ax, to_numpy(vectors), labels=labels, loc=loc, **kwargs)

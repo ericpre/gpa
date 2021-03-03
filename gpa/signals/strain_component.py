@@ -16,7 +16,8 @@ class StrainComponent(Signal2D):
 
     def plot(self, plot_vector_basis=True, cmap='viridis', **kwargs):
         super().plot(cmap=cmap, **kwargs)
-        if plot_vector_basis:
+        vector_basis = self.original_metadata.get_item('g_vectors')
+        if plot_vector_basis and vector_basis is not None:
             vector_basis = self.original_metadata.g_vectors
             vector_basis /= np.linalg.norm(vector_basis)
             add_vector_basis(vector_basis, ax=self._plot.signal_plot.ax,

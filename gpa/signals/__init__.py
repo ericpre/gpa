@@ -30,6 +30,11 @@
 
 from .atomic_resolution import AtomicResolution, AtomicResolutionFFT
 from .geometrical_phase_image import GeometricalPhaseImage
+from .strain_component import StrainComponent
 
 
-__all__ = ["AtomicResolution", "AtomicResolutionFFT", "GeometricalPhaseImage"]
+__all__ = ["AtomicResolution",
+           "AtomicResolutionFFT",
+           "GeometricalPhaseImage",
+           "StrainComponent",
+           ]

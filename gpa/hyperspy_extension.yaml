@@ -31,3 +31,10 @@ signals:
     dtype: real
     lazy: False
     module: gpa.signals.geometrical_phase_image
+
+  StrainComponent:
+    signal_type: strain_component
+    signal_dimension: 2
+    dtype: real
+    lazy: False
+    module: gpa.signals.strain_component

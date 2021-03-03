@@ -13,7 +13,6 @@ from gpa.utils import gradient_phase
 class GeometricalPhaseImage(Signal2D):
 
     signal_type = 'geometrical_phase'
-    _signal_dimension = 2
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
