@@ -110,7 +110,7 @@ class AtomicResolutionFFT(ComplexSignal2D):
 
         return signal
 
-    def get_phase_from_roi(self, roi, reduced=False, name='g'):
+    def get_phase_from_roi(self, roi, reduced=False, name='g', unwrap=True):
         """
         Get the geometrical phase of the area defined by the provided ROI.
 
@@ -131,12 +131,14 @@ class AtomicResolutionFFT(ComplexSignal2D):
         """
         phase = self._bragg_filtering(roi, return_real=False)
 
-        if reduced:
+        if unwrap:
             phase = phase.unwrapped_phase(show_progressbar=False)
-            g_vector_px = np.array(roi[:2]) / self._get_g_convertion_factor()
-            phase.data -= self._calculate_phase_from_g(g_vector_px)
         else:
-            phase.data = np.angle(phase)
+            phase.data = np.angle(phase.data)
+
+        if reduced:
+            g_vector_px = np.array(roi[:2]) / self._get_g_convertion_factor(like=np.ones(1))
+            phase.data -= self._calculate_phase_from_g(g_vector_px)
 
         phase.set_signal_type('geometrical_phase')
         phase.g_vector = vector_from_roi(roi)
@@ -148,10 +150,13 @@ class AtomicResolutionFFT(ComplexSignal2D):
 
     def _calculate_phase_from_g(self, g):
         shape = self.axes_manager.signal_shape
-        R_x, R_y = np.meshgrid(np.arange(0, shape[0]), np.arange(0, shape[1]))
+        R_x, R_y = np.meshgrid(np.arange(0, shape[0], like=self.data),
+                               np.arange(0, shape[1], like=self.data))
 
         return 2 * np.pi * ((R_x * g[0]) + (R_y * g[1]))
 
-    def _get_g_convertion_factor(self):
+    def _get_g_convertion_factor(self, like=None):
+        if like is None:
+            like = self.data
         return np.array([axis.scale * axis.size for axis in
-                         self.axes_manager.signal_axes])
+                         self.axes_manager.signal_axes], like=like)

@@ -5,20 +5,9 @@
 
 import numpy as np
 
-from hyperspy.signal import BaseSignal
+from hyperspy.misc.utils import get_array_module
 from hyperspy.roi import CircleROI
-
-
-def get_array_module(array):
-    module = np
-    try:
-        import cupy as cp
-        if isinstance(array, cp.ndarray):
-            module = cp
-    except ImportError:
-        pass
-
-    return module
+from hyperspy.signal import BaseSignal
 
 
 def relative2value(axis, relative):
@@ -137,14 +126,14 @@ def normalise_to_range(data, vmin, vmax):
     return (vmax - vmin) * (data - dmin) / (dmax - dmin) + vmin
 
 
-def rotation_matrix(angle):
+def rotation_matrix(angle, like):
     theta = np.radians(angle)
 
     return np.array([[np.cos(theta), -np.sin(theta)],
-                     [np.sin(theta),  np.cos(theta)]])
+                     [np.sin(theta),  np.cos(theta)]], like=like)
 
 
-def rotate_strain_tensor(angle, exx, eyy, eyx, exy):
+def rotate_strain_tensor(angle, exx, eyy, eyx, exy, like):
     st = np.sin(angle/360*np.pi*2)
     ct = np.cos(angle/360*np.pi*2)
 
@@ -153,7 +142,7 @@ def rotate_strain_tensor(angle, exx, eyy, eyx, exy):
     neyx = -exx*ct*st - eyy*st**2 + eyx*ct**2 + exy*st*ct
     neyy = exx*st**2 - eyy*st*ct - eyx*ct*st + exy*ct**2
 
-    return np.array([[nexx, nexy], [neyx, neyy]])
+    return np.array([[nexx, nexy], [neyx, neyy]], like=like)
 
 
 def gradient_phase(phase, flatten=False):
@@ -172,9 +161,9 @@ def gradient_phase(phase, flatten=False):
     """
 
     phase = 1j * phase
-    x, y = np.imag(np.exp(-phase) * np.gradient(np.exp(phase), axis=[1, 0]))
+    x, y = np.imag(np.exp(-phase) * np.array(np.gradient(np.exp(phase), axis=(1, 0)), like=phase))
 
     if flatten:
-        return np.array([x.flatten(), y.flatten()])
+        return np.array([x.flatten(), y.flatten()], like=phase)
     else:
-        return np.array([x, y])
+        return np.array([x, y], like=phase)

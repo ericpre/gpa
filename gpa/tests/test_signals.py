@@ -41,7 +41,7 @@ def test_refine_phase(gpa_tool, rois, refinement_roi):
         assert ax1.units == ax2.units
 
     g_refinement = phase.refine_phase(refinement_roi)
-    assert isinstance(g_refinement, hs.signals.BaseSignal)
+    assert isinstance(g_refinement, np.ndarray)
     np.testing.assert_allclose(g_refinement.data, np.array([-6.038e-03, 0.0]), atol=5e-5)
 
 

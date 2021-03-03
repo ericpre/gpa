@@ -50,7 +50,7 @@ class GeometricalPhaseImage(Signal2D):
 
         Returns
         -------
-        g_refinement : BaseSignal
+        g_refinement : array
             The shift in g corresponding to the change in phase reference.
 
         """
@@ -58,8 +58,10 @@ class GeometricalPhaseImage(Signal2D):
             raise RuntimeError("Gradient needs to be calculated first.")
 
         # Refine the gradient of the phase
-        grad_refinement = refinement_roi(self._gradient).mean(axis=[-2, -1])
-        self._gradient -= grad_refinement
+        grad_refinement = refinement_roi(self._gradient).data.mean(axis=(-2, -1))
+        # cupy broadcasting is not yet supported in hyperspy
+        for i in range(2):
+            self._gradient.data[i] -= grad_refinement[i]
 
         return grad_refinement / (-2*np.pi)
 

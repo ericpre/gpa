@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import hyperspy.api as hs
+from hyperspy.misc.utils import to_numpy
 from hyperspy.roi import BaseROI, RectangularROI
 import pint
 
@@ -88,15 +89,16 @@ class GeometricalPhaseAnalysisTool:
 
     def _g_vector(self, g, calibrated=True):
         roi = self.rois[g]
+        like = self.fft_signal.data
         if calibrated:
             # Use the roi values directly
-            factor = np.ones(2)
+            factor = np.ones(2,  like=like)
         else:
             # needs to convert to pixel value, which is used to do the
             # matrix calculation
-            factor = self.fft_signal._get_g_convertion_factor()
+            factor = self.fft_signal._get_g_convertion_factor(like=like)
 
-        return np.array(roi[:2]) / factor
+        return np.array(roi[:2], like=like) / factor
 
     def set_fft(self, *args, **kwargs):
         """
@@ -232,7 +234,7 @@ class GeometricalPhaseAnalysisTool:
 
         return RectangularROI(*start, *end)
 
-    def calculate_phase(self):
+    def calculate_phase(self, unwrap=True):
         """
         Calculate the phase for each g-vector previously set.
 
@@ -241,7 +243,7 @@ class GeometricalPhaseAnalysisTool:
         None.
 
         """
-        self._set_phase(*[self.fft_signal.get_phase_from_roi(roi, True, g)
+        self._set_phase(*[self.fft_signal.get_phase_from_roi(roi, True, g, unwrap)
                           for g, roi in self.rois.items()])
 
     def plot_phase(self, refinement_roi=True, **kwargs):
@@ -294,9 +296,11 @@ class GeometricalPhaseAnalysisTool:
             if phase._gradient is None:
                 phase.gradient()
             g_refinement = phase.refine_phase(self.refinement_roi)
-            g_refinement *= self.fft_signal._get_g_convertion_factor()
-            roi.cx -= g_refinement.data[0]
-            roi.cy -= g_refinement.data[1]
+            g_refinement *= self.fft_signal._get_g_convertion_factor(
+                like=self.fft_signal.data
+                )
+            roi.cx -= g_refinement[0]
+            roi.cy -= g_refinement[1]
 
     def calculate_displacement(self, angle=None):
         """
@@ -348,7 +352,7 @@ class GeometricalPhaseAnalysisTool:
         if len(phase_grad) == 1:
             phase_grad.append([np.zeros(np.multiply(*shape)) for i in range(2)])
 
-        return np.array(phase_grad)
+        return np.array(phase_grad, like=self.phases['g1'].data)
 
     def calculate_strain(self, angle=None):
         """
@@ -370,7 +374,8 @@ class GeometricalPhaseAnalysisTool:
 
         if angle is not None:
             self.angle = angle
-            e = rotate_strain_tensor(angle, e[0, 0], e[1, 1], e[1, 0], e[0, 1])
+            e = rotate_strain_tensor(angle, e[0, 0], e[1, 1], e[1, 0], e[0, 1],
+                                     like=self.fft_signal.data)
 
         shape = self.signal.axes_manager.signal_shape[::-1]
         e_xx = e[0, 0].T.reshape(shape)
@@ -467,18 +472,19 @@ class GeometricalPhaseAnalysisTool:
         """ The g matrix is the matrix formed of the vector g1 and g2. If g2
         is undefined, we set g2 orthogonal to g1
         """
+        like = self.fft_signal.data
         g_vectors = list(self.g_vectors(calibrated=calibrated).values())
 
         if len(g_vectors) == 1:
             g1 = g_vectors[0]
             g_vectors.append([g1[1], -g1[0]])
 
-        g_matrix = np.array(g_vectors).T
+        g_matrix = np.array(g_vectors, like=like).T
 
         if angle is not None:
-            g_matrix = g_matrix @ rotation_matrix(angle)
+            g_matrix = g_matrix @ rotation_matrix(angle, like=like)
         elif self.angle is not None:
-            g_matrix = g_matrix @ rotation_matrix(self.angle)
+            g_matrix = g_matrix @ rotation_matrix(self.angle, like=like)
 
         if normalised:
             g_matrix = g_matrix / np.linalg.norm(g_matrix)

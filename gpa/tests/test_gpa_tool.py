@@ -10,6 +10,13 @@ import hyperspy.api as hs
 import gpa
 
 
+try:
+    import cupy as cp
+    CUPY_INSTALLED = True
+except ImportError:
+    CUPY_INSTALLED = False
+
+
 def assert_g_a_matrices_product(g_matrix, a_matrix):
     np.testing.assert_allclose(g_matrix @ a_matrix, np.eye(2))
 
@@ -180,6 +187,47 @@ def test_refine_phase_strain_values(gpa_tool, rois, refinement_roi_args):
     np.testing.assert_almost_equal(strain_area, 1E-10)
 
     # Check strain in strained area
+    strained_area_roi_args = [4.2, 0.1, 7.4, 7.4]
+    strained_area_roi = hs.roi.RectangularROI(*strained_area_roi_args)
+    strain_area = strained_area_roi(gpa_tool.e_xx).data.mean()
+    np.testing.assert_almost_equal(strain_area, 0.0970, decimal=3)
+
+
+@pytest.mark.skipif(not CUPY_INSTALLED, reason="cupy is required")
+def test_cuda(rois, refinement_roi_args):
+    s = gpa.datasets.get_atomic_resolution_interface(size=512,
+                                                     spacing=14,
+                                                     strain=-0.1)
+    s.add_gaussian_noise(100)
+    s.set_signal_type('atomic_resolution')
+    s.to_gpu()
+
+    gpa_tool = s.create_gpa_tool()
+    gpa_tool.set_fft(True)
+
+    # # Add ROIs for the two g_vectors
+    gpa_tool.add_rois(rois)
+    gpa_tool.calculate_phase(unwrap=False)
+
+    # # Add refinement ROI and refine phase
+    gpa_tool.set_refinement_roi(refinement_roi_args)
+    gpa_tool.refine_phase()
+
+    # # Calculate and plot strain
+    gpa_tool.calculate_strain()
+    gpa_tool.plot_strain()
+
+
+    # check that measured strain is correct
+    import hyperspy.api as hs
+    import numpy as np
+
+    # In reference area, the strain is 0
+    reference_area_roi = hs.roi.RectangularROI(*refinement_roi_args)
+    strain_area = reference_area_roi(gpa_tool.e_xx).data.mean()
+    np.testing.assert_almost_equal(strain_area, 1E-10)
+
+    # In reference area, the strain is 0.01
     strained_area_roi_args = [4.2, 0.1, 7.4, 7.4]
     strained_area_roi = hs.roi.RectangularROI(*strained_area_roi_args)
     strain_area = strained_area_roi(gpa_tool.e_xx).data.mean()
