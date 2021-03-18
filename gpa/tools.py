@@ -16,20 +16,20 @@ from gpa.utils import relative2value, rotation_matrix, rotate_strain_tensor
 
 
 # TODO:
-# - sync radius ROI
-# - add ROI to plot if rois already exists, when plotting fft
+# - get/set spatial resolution and gaussian masking
 # - refactor phase refinement/phase calculation to be able to update the phase
 #   in place.
 
 
 class GeometricalPhaseAnalysisTool:
 
-    def __init__(self, signal):
+    def __init__(self, signal, synchronise_roi_radius=True):
         self.signal = signal
         self.fft_signal = None
         self.rois = {}
         self.refinement_roi = None
         self.phases = {}
+        self._synchronise_roi_radius = synchronise_roi_radius
 
         self.angle = None
 
@@ -42,6 +42,21 @@ class GeometricalPhaseAnalysisTool:
         self.e_yx = None
         self.theta = None
         self.omega = None
+
+    @property
+    def synchronise_roi_radius(self):
+        return self._synchronise_roi_radius
+
+    @synchronise_roi_radius.setter
+    def synchronise_roi_radius(self, value):
+        self._synchronise_roi_radius = value
+        for roi in self.rois.values():
+            if value:
+                roi.events.changed.connect(self._sync_radius_roi, {'roi': 'roi'})
+            else:
+                for f in roi.events.changed.connected:
+                    roi.events.changed.disconnect(f)
+
 
     def _set_phase(self, *phases):
         """
@@ -152,11 +167,25 @@ class GeometricalPhaseAnalysisTool:
                            axes=self.fft_signal.axes_manager.signal_axes)
 
     def _add_roi(self, g, *args):
-        self.rois[g] = hs.roi.CircleROI(*args)
+        roi = hs.roi.CircleROI(*args)
         if self.fft_signal is None:
             raise RuntimeError("The Fourier Transform must be computed first.")
         if self.fft_signal._plot is not None:
-            self.rois[g].interactive(self.fft_signal)
+            try:
+                roi.interactive(self.fft_signal, snap=False)
+            except TypeError:
+                # HyperSpy version doesn't support snap argument
+                roi.interactive(self.fft_signal)
+            if self.synchronise_roi_radius:
+                roi.events.changed.connect(self._sync_radius_roi, {'roi': 'roi'})
+
+        self.rois[g] = roi
+
+    def _sync_radius_roi(self, roi):
+        for _roi in self.rois.values():
+            if _roi is not roi:
+                with _roi.events.changed.suppress():
+                    _roi.r = roi.r
 
     def add_rois(self, roi_args=None):
         """

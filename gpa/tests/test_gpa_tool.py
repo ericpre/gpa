@@ -216,7 +216,10 @@ def test_cuda(rois, refinement_roi_args):
                                                      strain=-0.1)
     s.add_gaussian_noise(100)
     s.set_signal_type('atomic_resolution')
-    s.to_gpu()
+    try:
+        s.to_gpu()
+    except:
+        pytest.skip()
 
     gpa_tool = s.create_gpa_tool()
     gpa_tool.set_fft(True)
@@ -248,3 +251,52 @@ def test_cuda(rois, refinement_roi_args):
     strained_area_roi = hs.roi.RectangularROI(*strained_area_roi_args)
     strain_area = strained_area_roi(gpa_tool.e_xx).data.mean()
     np.testing.assert_almost_equal(strain_area, 0.0970, decimal=3)
+
+
+def test_synchronise_ROI(gpa_tool):
+    gpa_tool.set_fft()
+    gpa_tool.plot_power_spectrum()
+
+    # Add ROIs for the two g_vectors
+    g_rois = [[4.7, 0.0, 1.5], [0.0, -4.7, 1.5]]
+    gpa_tool.add_rois(g_rois)
+    assert gpa_tool.synchronise_roi_radius == True
+    roi = gpa_tool.rois['g1']
+    roi.r = 1.2
+    roi.events.changed.trigger(roi)
+    assert roi.r == 1.2
+    assert gpa_tool.rois['g2'].r == 1.2
+
+    gpa_tool.synchronise_roi_radius = False
+    roi = gpa_tool.rois['g2']
+    roi.r = 2.2
+    roi.events.changed.trigger(roi)
+    assert roi.r == 2.2
+    assert gpa_tool.rois['g1'].r == 1.2
+
+    gpa_tool.synchronise_roi_radius = True
+    roi = gpa_tool.rois['g2']
+    roi.r = 3.0
+    roi.events.changed.trigger(roi)
+    assert roi.r == 3.0
+    assert gpa_tool.rois['g1'].r == 3.0
+
+    s = gpa.datasets.get_atomic_resolution_interface(size=512,
+                                                     spacing=14, strain=-0.1)
+    s.set_signal_type('atomic_resolution')
+    s.plot()
+
+    gpa_tool2 = s.create_gpa_tool(synchronise_roi_radius=False)
+    gpa_tool2.set_fft()
+    gpa_tool2.plot_power_spectrum()
+
+    # Add ROIs for the two g_vectors
+    g_rois = [[4.7, 0.0, 1.5], [0.0, -4.7, 1.5]]
+    gpa_tool2.add_rois(g_rois)
+    roi = gpa_tool.rois['g1']
+    roi.r = 1.2
+    roi.events.changed.trigger(roi)
+    assert roi.r == 1.2
+    assert gpa_tool2.rois['g2'].r == 1.5
+
+

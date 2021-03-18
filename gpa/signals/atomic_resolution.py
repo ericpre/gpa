@@ -18,8 +18,23 @@ class AtomicResolution(Signal2D):
     _signal_dimension = 2
 
 
-    def create_gpa_tool(self):
-        return GeometricalPhaseAnalysisTool(self)
+    def create_gpa_tool(self, synchronise_roi_radius=True):
+        """
+        Create the GPA tool for the current signal.
+
+        Parameters
+        ----------
+        synchronise_roi_radius : bool, optional
+            If True, the radius of the roi used to select the g vectors will
+            be synchronised. The default is True.
+
+        Returns
+        -------
+        GeometricalPhaseAnalysisTool
+            The GPA tool.
+
+        """
+        return GeometricalPhaseAnalysisTool(self, synchronise_roi_radius)
 
     def fft(self, *args, **kwargs):
         fft = super().fft(*args, **kwargs)
