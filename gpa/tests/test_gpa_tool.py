@@ -253,13 +253,11 @@ def test_cuda(rois, refinement_roi_args):
     np.testing.assert_almost_equal(strain_area, 0.0970, decimal=3)
 
 
-def test_synchronise_ROI(gpa_tool):
-    gpa_tool.set_fft()
+def test_synchronise_ROI(gpa_tool, rois):
     gpa_tool.plot_power_spectrum()
 
     # Add ROIs for the two g_vectors
-    g_rois = [[4.7, 0.0, 1.5], [0.0, -4.7, 1.5]]
-    gpa_tool.add_rois(g_rois)
+    gpa_tool.add_rois(rois)
     assert gpa_tool.synchronise_roi_radius == True
     roi = gpa_tool.rois['g1']
     roi.r = 1.2
@@ -300,3 +298,29 @@ def test_synchronise_ROI(gpa_tool):
     assert gpa_tool2.rois['g2'].r == 1.5
 
 
+@pytest.mark.parametrize('plot', [True, False])
+def test_spatial_resolution(gpa_tool, rois, plot):
+    with pytest.raises(ValueError):
+        gpa_tool.spatial_resolution
+
+    with pytest.raises(ValueError):
+        gpa_tool.spatial_resolution = 1.0
+
+    if plot:
+        gpa_tool.plot_power_spectrum()
+    gpa_tool.add_rois(rois)
+    np.testing.assert_allclose(gpa_tool.spatial_resolution, 0.3183099)
+
+    resolution = 0.9
+    gpa_tool.spatial_resolution = resolution
+    np.testing.assert_allclose(gpa_tool.spatial_resolution, resolution)
+    for roi in gpa_tool.rois.values():
+        np.testing.assert_allclose(roi.r, 0.5305165)
+
+    gpa_tool.synchronise_roi_radius = False
+    resolution = 1.1
+    gpa_tool.spatial_resolution = resolution
+    with pytest.raises(ValueError):
+        gpa_tool.spatial_resolution
+    for roi in gpa_tool.rois.values():
+        np.testing.assert_allclose(roi.r, 0.4340589)

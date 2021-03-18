@@ -12,13 +12,15 @@ s.set_signal_type('atomic_resolution')
 s.plot()
 
 gpa_tool = s.create_gpa_tool()
-gpa_tool.set_fft(True)
+gpa_tool.set_fft()
 
 gpa_tool.plot_power_spectrum()
 
 # Add ROIs for the two g_vectors
 g_rois = [[4.7, 0.0, 1.5], [0.0, -4.7, 1.5]]
 gpa_tool.add_rois(g_rois)
+gpa_tool.spatial_resolution = 0.6
+
 gpa_tool.calculate_phase()
 
 # Add refinement ROI and refine phase

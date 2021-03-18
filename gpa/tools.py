@@ -16,7 +16,8 @@ from gpa.utils import relative2value, rotation_matrix, rotate_strain_tensor
 
 
 # TODO:
-# - get/set spatial resolution and gaussian masking
+# - Cut the corner of the Gaussian mask when it is touching the zero-frequency
+#   component
 # - refactor phase refinement/phase calculation to be able to update the phase
 #   in place.
 
@@ -57,6 +58,68 @@ class GeometricalPhaseAnalysisTool:
                 for f in roi.events.changed.connected:
                     roi.events.changed.disconnect(f)
 
+    @property
+    def spatial_resolution(self):
+        """
+        Returns the estimated spatial resolution in calibrated units.
+
+        Returns
+        -------
+        float
+            The estimated spatial resolution in calibrated units.
+
+        Notes
+        -----
+        For consideration on spatial resolution, see
+        Rouviere & Sarigiannidou Ultramicroscopy 106 (2005) 1-17
+
+        """
+        # When using a Gaussian mask, we the assume that the spatial resolution
+        # is 3/(2pi*sigma) where sigma is the sigma of the Gaussian mask in
+        # reciprocal space
+        # Here the sigma of the gaussian is sigma
+        # See Rouviere & Sarigiannidou Ultramicroscopy 106 (2005) 1-17
+        if len(self.rois) == 0:
+            raise ValueError("The ROI(s) need to be added first.")
+        if not self.synchronise_roi_radius:
+            raise ValueError('The radius of the ROIs needs to be synchronised '
+                             'to determine a meaningfull spatial resolution. '
+                             'Use the `synchronise_roi_radius` attribute to '
+                             'True to synchronise the radius of the ROIs.')
+        return 3 / (2*np.pi) / self.rois['g1'].r
+
+    @spatial_resolution.setter
+    def spatial_resolution(self, value):
+        """
+        Set the radius of the ROI in reciprocal space to achieve a specific
+        spatial resolution. See references provided in the Notes for more
+        details.
+
+        Parameters
+        ----------
+        value : float
+            Desired spatial resolution.
+
+        Returns
+        -------
+        None.
+
+        Notes
+        -----
+        For consideration on spatial resolution, see
+        Rouviere & Sarigiannidou Ultramicroscopy 106 (2005) 1-17
+
+        """
+        if len(self.rois) == 0:
+            raise ValueError("The ROI(s) need to be added first.")
+        spatial_resolution2sigma = lambda v: 3 / (2*np.pi) / v
+        rois = list(self.rois.values())
+        rois[0].r = spatial_resolution2sigma(value)
+        _plot = self._get_fft_plot()
+        # ROI are not sync or plot is not active
+        if not self.synchronise_roi_radius or not (_plot and _plot.is_active):
+            for roi in rois[1:]:
+                roi.r = spatial_resolution2sigma(value)
 
     def _set_phase(self, *phases):
         """
@@ -133,6 +196,10 @@ class GeometricalPhaseAnalysisTool:
         """
         self.fft_signal = self.signal.fft(shift=True, **kwargs)
 
+    def _get_fft_plot(self):
+        if self.fft_signal is not None:
+            return self.fft_signal._plot
+
     def plot_power_spectrum(self, **kwargs):
         """
         Plot the power spectrum of the signal. As a convenience, only the
@@ -189,7 +256,8 @@ class GeometricalPhaseAnalysisTool:
 
     def add_rois(self, roi_args=None):
         """
-        Add the ROIs on the power spectrum to select the two g vectors.
+        Add the ROIs on the power spectrum to select the two g vectors. The
+        radius of the ROIs defines the sigma of the Gaussian mask.
 
         Parameters
         ----------
@@ -233,10 +301,8 @@ class GeometricalPhaseAnalysisTool:
             self._add_roi(f'g{i}', *args)
 
     def remove_rois(self):
-        _plot = None
-        if self.fft_signal is not None:
-            _plot = self.fft_signal._plot
-        if _plot is not None and _plot.is_active:
+        _plot = self._get_fft_plot()
+        if _plot and _plot.is_active:
             for roi in self.rois.values():
                 for w in roi.widgets:
                     w.close(render_figure=False)
@@ -278,7 +344,7 @@ class GeometricalPhaseAnalysisTool:
 
         return RectangularROI(*start, *end)
 
-    def calculate_phase(self, unwrap=True):
+    def calculate_phase(self, unwrap=False):
         """
         Calculate the phase for each g-vector previously set.
 

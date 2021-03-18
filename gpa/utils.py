@@ -52,8 +52,10 @@ def get_mask_from_roi(signal, roi, axes=None, gaussian=True):
         # CircleROI
         cx = roi.cx + 0.5001 * axes[0].scale
         cy = roi.cy + 0.5001 * axes[1].scale
-        ranges = [[cx - radius, cx + radius],
-                  [cy - radius, cy + radius]]
+        r = np.linalg.norm([cx, cy]) * 0.8
+        radius_slice = np.clip(radius * 3, a_min=radius, a_max=r)
+        ranges = [[cx - radius_slice, cx + radius_slice],
+                  [cy - radius_slice, cy + radius_slice]]
     else:
         ranges = roi._get_ranges()
 
@@ -67,7 +69,7 @@ def get_mask_from_roi(signal, roi, axes=None, gaussian=True):
             x = np.arange(slices[0].stop - slices[0].start)
             y = np.arange(slices[1].stop - slices[1].start)
             xx, yy = np.meshgrid(x, y)
-            sigma = len(x) / 2
+            sigma = radius / axes[0].scale
 
             import hyperspy.api as hs
             gaussian2d = hs.model.components2D.Gaussian2D(
