@@ -8,7 +8,6 @@ import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 import hyperspy.api as hs
-from hyperspy.misc.utils import to_numpy
 from hyperspy.roi import BaseROI, RectangularROI
 import pint
 

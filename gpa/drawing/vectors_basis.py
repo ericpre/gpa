@@ -9,7 +9,7 @@ from matplotlib.patches import FancyArrow
 from matplotlib.text import Text
 import matplotlib.pyplot as plt
 
-from hyperspy.misc.utils import to_numpy
+from gpa.utils import to_numpy
 
 
 class VectorBasis:
