@@ -49,3 +49,31 @@ def test_atomic_resolution_fft_signal():
     s = gpa.signals.AtomicResolutionFFT(np.arange(100).reshape(10, 10))
     assert s.signal_type == 'spectral_domain'
     assert isinstance(s, hs.signals.ComplexSignal2D)
+
+
+def test_rescale():
+    s = gpa.datasets.get_atomic_resolution_interface(
+        size=256, spacing=14, strain=-0.1)
+    s.add_gaussian_noise(100)
+    s.set_signal_type('atomic_resolution')
+    s.rescale(1.25)
+    assert s.data.shape == (320, 320)
+
+    s.rescale((1.25, 1.0))
+    assert s.data.shape == (400, 320)
+
+    np.testing.assert_allclose([ax.scale for ax in s.axes_manager.signal_axes],
+                               [0.0234375, 0.01875])
+
+
+def test_rescale_navigation():
+    s = hs.signals.Signal2D(np.arange(1E3).reshape([10]*3))
+    s.set_signal_type('atomic_resolution')
+    with pytest.raises(ValueError):
+        s.rescale((1.25, 1.25, 1.0))
+
+    s2 = s.rescale((1.25, 1.25), inplace=False)
+    s3 = s.rescale((1.25, ), inplace=False)
+    s.rescale(1.25)
+    assert s == s2
+    assert s == s3

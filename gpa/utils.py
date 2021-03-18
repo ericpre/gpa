@@ -233,7 +233,7 @@ def get_array_module(array):
     return module
 
 
-def get_ndimage_module(array):
+def get_ndi_module(array):
     """
     Returns the array module for the given array.
 
@@ -246,15 +246,10 @@ def get_ndimage_module(array):
     -------
     module : module
     """
-    import scipy.ndimage as ndi
-    module = ndi
-    try:
-        import cupy as cp
-        import cupyx
-        if isinstance(array, cp.ndarray):
-            module = cupyx.scipy.ndimage
-    except ImportError:
-        pass
 
-    return module
-
+    if is_cupy_array(array):
+        from cupyx.scipy import ndimage
+        return ndimage
+    else:
+        from scipy import ndimage
+        return ndimage

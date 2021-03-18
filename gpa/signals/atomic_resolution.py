@@ -7,7 +7,7 @@ import numpy as np
 
 from hyperspy.signals import Signal2D, ComplexSignal2D
 
-from gpa.utils import get_mask_from_roi, vector_from_roi
+from gpa.utils import get_mask_from_roi, vector_from_roi, get_ndi_module
 from gpa.tools import GeometricalPhaseAnalysisTool
 
 
@@ -26,6 +26,72 @@ class AtomicResolution(Signal2D):
         fft.set_signal_type('spectral_domain')
 
         return fft
+
+    def rescale(self, scale, order=1, inplace=True, **kwargs):
+        """
+        Performs interpolation to up-scale the signal space.
+
+        Parameters
+        ----------
+        scale : {float, tuple of floats}
+            Scale factors for the signal dimension
+        order : int, optional
+            The order of the spline interpolation, default is 1.
+        inplace : bool, optional
+            Determine if the operation is performed in place. Otherwise, the
+            output is returned. The default is True.
+        **kwargs : dict
+            Keyword argument passed to ``map_coordinates``.
+
+        Returns
+        -------
+        data : array or None
+            Rescaled version of the input if inplace=False, otherwise None.
+
+        Note
+        ----
+        Convenience method adapted from scikit-image rescale to support numpy
+        and cupy array.
+
+        """
+        scale = tuple(np.atleast_1d(scale))
+        # Normalise scale argument to match signal shape
+        if len(scale) == 1:
+            scale = scale * self.axes_manager.signal_dimension
+        elif len(scale) > self.axes_manager.signal_dimension:
+            raise ValueError("The length of scale must be the same as the"
+                             "signal dimension.")
+
+        # Add scale of 1 for all navigation dimensions
+        scale = tuple([1.0]*self.axes_manager.navigation_dimension) + scale
+
+        orig_shape = np.asarray(self.data.shape)
+        output_shape = np.maximum(np.round(scale * orig_shape), 1)
+
+        input_shape = self.data.shape
+        factors = (np.asarray(input_shape, dtype=float) /
+                   np.asarray(output_shape, dtype=float))
+
+        coord_arrays = [factors[i] * (np.arange(d) + 0.5) - 0.5
+                        for i, d in enumerate(output_shape)]
+
+        grid = np.meshgrid(*coord_arrays, sparse=False, indexing='ij')
+        coord_map = np.array(grid, like=self.data)
+
+        ndi = get_ndi_module(self.data)
+
+        s = self if inplace else self._deepcopy_with_new_data(
+            None, copy_variance=True)
+        s.data = ndi.map_coordinates(self.data, coord_map, order=order)
+
+        s.get_dimensions_from_data()
+        for axis, factor in zip(s.axes_manager.signal_axes, factors):
+            axis.scale /= factor
+
+        if inplace:
+            s.events.data_changed.trigger(obj=s)
+        else:
+            return s
 
 
 class ComplexAtomicResolution(ComplexSignal2D, AtomicResolution):
