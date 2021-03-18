@@ -127,6 +127,22 @@ def test_gpa2D_angle(gpa_tool, rois):
                                          [-0.03525, -0.06105479]]))
 
 
+def test_add_remove_rois(gpa_tool, rois):
+    gpa_tool.add_rois(rois)
+    gpa_tool.plot_power_spectrum()
+    for roi, expected_roi_arg in zip(gpa_tool.rois.values(), rois):
+        assert list(roi) == expected_roi_arg
+
+    gpa_tool.remove_rois()
+    assert gpa_tool.rois == {}
+
+
+def test_remove_rois():
+    s = gpa.signals.AtomicResolution(np.ones((10, 10)))
+    gpa_tool = s.create_gpa_tool()
+    gpa_tool.remove_rois()
+
+
 def test_refine_phase(gpa_tool, rois, refinement_roi, refinement_roi_args):
     gpa_tool.add_rois(rois)
     gpa_tool.calculate_phase()

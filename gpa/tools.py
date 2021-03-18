@@ -98,40 +98,46 @@ class GeometricalPhaseAnalysisTool:
 
         return np.array(roi[:2], like=like) / factor
 
-    def set_fft(self, *args, **kwargs):
+    def set_fft(self, shift=True, **kwargs):
         """
         Calculate the FFT of the signal.
 
         Parameters
         ----------
-        *args, **kwargs
-            The positional and keywords argument are passed to the `fft`
-            method of the hyperspy Signal2D.
+        shift : bool, optional
+            If ``True``, the origin of FFT will be shifted to the centre
+            (default is ``False``).
+        **kwargs
+            The keywords argument are passed to the `fft` method of the
+            hyperspy Signal2D.
 
         Returns
         -------
         None.
 
         """
-        self.fft_signal = self.signal.fft(*args, **kwargs)
+        self.fft_signal = self.signal.fft(shift=True, **kwargs)
 
-    def plot_fft(self, *args, **kwargs):
+    def plot_power_spectrum(self, **kwargs):
         """
-        Plot the FFT of the signal. As a convenience, only the central part of
-        the FFT is displayed.
+        Plot the power spectrum of the signal. As a convenience, only the
+        central part of the power spectrum is displayed.
 
         Parameters
         ----------
         *args, **kwargs
-            The positional and keywords argument are passed to the plot method
-            of the hyperspy Signal2D.
+            The keywords argument are passed to the plot method of the
+            hyperspy Signal2D.
 
         Returns
         -------
         None.
 
         """
-        self.fft_signal.plot(*args, **kwargs)
+        if self.fft_signal is None:
+            self.set_fft(shift=True)
+
+        self.fft_signal.plot(power_spectrum=True, **kwargs)
         signal_axes = self.fft_signal.axes_manager.signal_axes
         start = [relative2value(axis, 3/8) for axis in signal_axes]
         end = [relative2value(axis, 1 - 3/8) for axis in signal_axes]
@@ -175,7 +181,7 @@ class GeometricalPhaseAnalysisTool:
         >>> s = gpa.datasets.get_atomic_resolution_tem_signal2d()
         >>> gpa_tool = gpa.GeometricalPhaseAnalysisTool(s)
         >>> gpa_tool.set_fft(True)
-        >>> gpa_tool.plot_fft(True)
+        >>> gpa_tool.plot_power_spectrum()
 
         Specify the ROI arguments (see CircleROI documentation)
 
@@ -196,6 +202,17 @@ class GeometricalPhaseAnalysisTool:
                         [0, roi_args, 2]]
         for i, args in enumerate(roi_args, start=1):
             self._add_roi(f'g{i}', *args)
+
+    def remove_rois(self):
+        _plot = None
+        if self.fft_signal is not None:
+            _plot = self.fft_signal._plot
+        if _plot is not None and _plot.is_active:
+            for roi in self.rois.values():
+                for w in roi.widgets:
+                    w.close(render_figure=False)
+            _plot.signal_plot.render_figure()
+        self.rois = {}
 
     def set_refinement_roi(self, roi=None):
         """

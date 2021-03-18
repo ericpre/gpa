@@ -23,7 +23,7 @@ def gpa_tool():
     s.add_gaussian_noise(100)
     s.set_signal_type('atomic_resolution')
     gpa_tool = gpa.GeometricalPhaseAnalysisTool(s)
-    gpa_tool.set_fft(True)
+    gpa_tool.set_fft()
 
     return gpa_tool
 
