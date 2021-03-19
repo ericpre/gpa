@@ -42,7 +42,9 @@ def test_refine_phase(gpa_tool, rois, refinement_roi):
 
     g_refinement = phase.refine_phase(refinement_roi)
     assert isinstance(g_refinement, np.ndarray)
-    np.testing.assert_allclose(g_refinement.data, np.array([-6.038e-03, 0.0]), atol=5e-5)
+    np.testing.assert_allclose(g_refinement.data,
+                               np.array([1e-3, 1e-3]),
+                               atol=5e-3)
 
 
 def test_atomic_resolution_fft_signal():

@@ -46,13 +46,16 @@ def get_mask_from_roi(signal, roi, axes=None, gaussian=True):
     else:
         axes = roi._parse_axes(axes, signal.axes_manager)
 
-    radius = roi.r
-
+    # Needs to add support for other type of ROI
     if hasattr(roi, 'cx'):
         # CircleROI
+        radius = roi.r
         cx = roi.cx + 0.5001 * axes[0].scale
         cy = roi.cy + 0.5001 * axes[1].scale
         r = np.linalg.norm([cx, cy]) * 0.8
+        # The factor of 3 come from an estimate of how far the tail of the
+        # Gaussian goes; to avoid getting the zero-frequency component in
+        # the mask, we clip its radius_slice value
         radius_slice = np.clip(radius * 3, a_min=radius, a_max=r)
         ranges = [[cx - radius_slice, cx + radius_slice],
                   [cy - radius_slice, cy + radius_slice]]
@@ -60,7 +63,22 @@ def get_mask_from_roi(signal, roi, axes=None, gaussian=True):
         ranges = roi._get_ranges()
 
     if hasattr(roi, 'cx'):
+        # The 'else' part is missing
         slices = roi._make_slices(axes, axes, ranges=ranges)
+
+        if not gaussian:
+            # in case of Bragg Filtering
+            radius_slice = radius
+
+        # Calculate a disk mask
+        sig_axes = signal.axes_manager.signal_axes
+        ir = [slices[sig_axes.index(axes[0])],
+              slices[sig_axes.index(axes[1])]]
+        vx = axes[0].axis[ir[0]] - cx
+        vy = axes[1].axis[ir[1]] - cy
+        gx, gy = np.meshgrid(vx, vy)
+        gr = gx**2 + gy**2
+        disk_mask = gr > radius_slice**2
 
         if gaussian:
             mask = BaseSignal(np.zeros(signal.data.shape))
@@ -78,21 +96,13 @@ def get_mask_from_roi(signal, roi, axes=None, gaussian=True):
                 centre_x=len(x)/2,
                 centre_y=len(y)/2,
                 A=2*np.pi*sigma**2)
-            mask_circle = gaussian2d.function(xx, yy)
-
+            mask_circle = gaussian2d.function(xx, yy) * ~disk_mask
         else:
             mask = BaseSignal(np.full(signal.data.shape, True, dtype=bool))
             mask.axes_manager.set_signal_dimension(
                 signal.axes_manager.signal_dimension)
 
-            natax = signal.axes_manager._get_axes_in_natural_order()
-            ir = [slices[natax.index(axes[0])],
-                  slices[natax.index(axes[1])]]
-            vx = axes[0].axis[ir[0]] - cx
-            vy = axes[1].axis[ir[1]] - cy
-            gx, gy = np.meshgrid(vx, vy)
-            gr = gx**2 + gy**2
-            mask_circle = gr > roi.r**2
+            mask_circle = disk_mask
 
         mask.isig[slices] = mask_circle
 

@@ -13,7 +13,7 @@ import gpa
 
 @pytest.fixture
 def rois():
-    rois = [[4.35, 0.0, 1.5], [0.0, -4.7, 1.5]]
+    rois = [[4.35, 0.0, 1.0], [0.0, -4.7, 1.0]]
     return rois
 
 

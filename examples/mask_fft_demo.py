@@ -14,7 +14,7 @@ from gpa.utils import get_mask_from_roi
 """
 Generate synthetic dataset
 """
-s = gpa.datasets.get_atomic_resolution_interface(size=2048, spacing=14, strain=-0.1)
+s = gpa.datasets.get_atomic_resolution_interface(size=512, spacing=14, strain=-0.1)
 s.add_gaussian_noise(100)
 s.set_signal_type('atomic_resolution')
 s.plot()
@@ -34,7 +34,7 @@ roi = hs.roi.CircleROI(*roi_args)
 gpa_tool.add_rois([tuple(roi)])
 
 """
-Display the Gaussina mask used for the GPA calculation and overlay the ROI
+Display the Gaussian mask used for the GPA calculation and overlay the ROI
 """
 fft = gpa_tool.fft_signal
 g_mask = get_mask_from_roi(fft, roi, gaussian=True)

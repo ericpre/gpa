@@ -20,6 +20,9 @@ from gpa.utils import relative2value, rotation_matrix, rotate_strain_tensor
 #   component
 # - refactor phase refinement/phase calculation to be able to update the phase
 #   in place.
+# - Mask area where the amplitude is very low (means noise)
+# - if radius of ROI is too small, raise an error with a message more clear
+#   the current one
 
 
 class GeometricalPhaseAnalysisTool:
