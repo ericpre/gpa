@@ -42,9 +42,8 @@ def test_refine_phase(gpa_tool, rois, refinement_roi):
 
     g_refinement = phase.refine_phase(refinement_roi)
     assert isinstance(g_refinement, np.ndarray)
-    np.testing.assert_allclose(g_refinement.data,
-                               np.array([1e-3, 1e-3]),
-                               atol=5e-3)
+    np.testing.assert_allclose(g_refinement.data, np.array([-5.8e-03, 0.0]),
+                               atol=1e-3)
 
 
 def test_atomic_resolution_fft_signal():
@@ -79,3 +78,11 @@ def test_rescale_navigation():
     s.rescale(1.25)
     assert s == s2
     assert s == s3
+
+
+@pytest.mark.parametrize('interactive', [True, False])
+def test_bragg_filtering(gpa_tool, rois, interactive):
+    gpa_tool.add_rois(rois)
+    roi = gpa_tool.rois['g1']
+    out = gpa_tool.fft_signal.bragg_filtering(roi, interactive=interactive)
+    assert isinstance(out, gpa.signals.AtomicResolution)

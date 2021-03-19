@@ -3,11 +3,14 @@
 # Copyright (c) 2020, Eric Prestat
 # All rights reserved.
 
+from functools import partial
+
 import numpy as np
 
 from hyperspy.signals import Signal2D, ComplexSignal2D
+import hyperspy.api as hs
 
-from gpa.utils import get_mask_from_roi, vector_from_roi, get_ndi_module
+from gpa.utils import get_mask_from_roi, vector_from_roi, get_ndi_module, is_cupy_array
 from gpa.tools import GeometricalPhaseAnalysisTool
 
 
@@ -131,7 +134,8 @@ class AtomicResolutionFFT(ComplexSignal2D):
         super().__init__(*args, **kwargs)
         self.rois = {}
 
-    def _bragg_filtering(self, roi, return_real, centre=False, gaussian=True):
+    def _bragg_filtering(self, roi, return_real, centre=False, gaussian=True,
+                         out=None):
         """
         Perform Bragg filtering from a circle ROI.
 
@@ -155,7 +159,10 @@ class AtomicResolutionFFT(ComplexSignal2D):
         """
         # Add gaussian mask
         mask = get_mask_from_roi(self, roi, gaussian)
+
         # check inplace, out, multi-dimensional. etc.
+        if is_cupy_array(self.data):
+            mask.to_gpu()
         signal = self * mask
 
         shifted = self.metadata.Signal.FFT.shifted
@@ -166,12 +173,18 @@ class AtomicResolutionFFT(ComplexSignal2D):
                 shift = int(zero_frequency_index - axis.value2index(value))
                 signal.data = np.roll(signal.data, shift, axis.index_in_array)
 
-        signal = signal.ifft(shift=shifted, return_real=return_real)
-        signal.set_signal_type('atomic_resolution')
+        # Refactor once the fft and ifft have an out argument
+        if out is None:
+            signal = signal.ifft(shift=shifted, return_real=return_real)
+            signal.set_signal_type('atomic_resolution')
+            return signal
+        else:
+            out.data = signal.ifft(shift=shifted, return_real=return_real).data
+            out.set_signal_type('atomic_resolution')
+            out.events.data_changed.trigger(out)
+            return out
 
-        return signal
-
-    def bragg_filtering(self, roi):
+    def bragg_filtering(self, roi, interactive=False):
         """
         Perform Bragg filtering from a circle ROI.
 
@@ -186,10 +199,25 @@ class AtomicResolutionFFT(ComplexSignal2D):
             Bragg filtered image of the spectra component defined by the ROI.
 
         """
-        signal = self._bragg_filtering(roi, return_real=True)
-        signal.metadata.General.title = 'Bragg filtered image'
+        bragg_filtered_image = partial(self._bragg_filtering,
+                                       return_real=True,
+                                       gaussian=False)
+        out = bragg_filtered_image(roi)
+        out.metadata.General.title = 'Bragg filtered image'
 
-        return signal
+        if interactive:
+            # Create the interactive signal
+            hs.interactive(
+                bragg_filtered_image,
+                roi=roi,
+                event=roi.events.changed,
+                recompute_out_event=None,
+                out=out,
+            )
+
+        out.set_signal_type('atomic_resolution')
+
+        return out
 
     def get_phase_from_roi(self, roi, reduced=False, name='g', unwrap=True):
         """

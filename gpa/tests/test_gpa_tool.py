@@ -150,7 +150,7 @@ def test_refine_phase(gpa_tool, rois, refinement_roi, refinement_roi_args):
     gpa_tool.set_refinement_roi(refinement_roi_args)
     gpa_tool.refine_phase()
     np.testing.assert_allclose(gpa_tool.g_vectors()['g1'],
-                               np.array([4.7512, 0.0]), atol=5E-3)
+                               np.array([4.7417, 0.0]), atol=5E-3)
     np.testing.assert_allclose(gpa_tool.g_vectors()['g2'],
                                np.array([-1.02912e-04, -4.7519]), atol=5E-3)
 
@@ -309,7 +309,7 @@ def test_spatial_resolution(gpa_tool, rois, plot):
     if plot:
         gpa_tool.plot_power_spectrum()
     gpa_tool.add_rois(rois)
-    np.testing.assert_allclose(gpa_tool.spatial_resolution, 0.3183099)
+    np.testing.assert_allclose(gpa_tool.spatial_resolution, 0.4774648)
 
     resolution = 0.9
     gpa_tool.spatial_resolution = resolution
