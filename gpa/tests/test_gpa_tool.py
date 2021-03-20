@@ -222,11 +222,11 @@ def test_cuda(rois, refinement_roi_args):
         pytest.skip()
 
     gpa_tool = s.create_gpa_tool()
-    gpa_tool.set_fft(True)
+    gpa_tool.set_fft()
 
     # # Add ROIs for the two g_vectors
     gpa_tool.add_rois(rois)
-    gpa_tool.calculate_phase(unwrap=False)
+    gpa_tool.calculate_phase()
 
     # # Add refinement ROI and refine phase
     gpa_tool.set_refinement_roi(refinement_roi_args)
@@ -235,7 +235,6 @@ def test_cuda(rois, refinement_roi_args):
     # # Calculate and plot strain
     gpa_tool.calculate_strain()
     gpa_tool.plot_strain()
-
 
     # check that measured strain is correct
     import hyperspy.api as hs

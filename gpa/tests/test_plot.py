@@ -31,15 +31,11 @@ def test_plot_gpa2D(gpa_tool, rois, angle):
     # components is None, set the following default
     default_components = ['e_xx', 'e_yy', 'omega']
     for component in default_components:
-        c = getattr(gpa_tool, component)
-        assert c._plot is None
+        _ = getattr(gpa_tool, component)
     plt.close('all')
 
     gpa_tool.plot_strain(same_figure=False)
-    for component in default_components:
-        c = getattr(gpa_tool, component)
-        assert c._plot is not None
-        c._plot.close()
+    plt.close('all')
 
 
 def test_plot_phase_amplitude_refinement_roi(gpa_tool, rois, refinement_roi):

@@ -12,13 +12,17 @@ from hyperspy.roi import BaseROI, RectangularROI
 import pint
 
 from gpa.drawing import add_vector_basis, add_roi_to_signal_plot
-from gpa.utils import relative2value, rotation_matrix, rotate_strain_tensor
+from gpa.utils import (
+    relative2value,
+    rotation_matrix,
+    rotate_strain_tensor,
+    to_numpy
+    )
 
 
 # TODO:
 # - refactor phase refinement/phase calculation to be able to update the phase
 #   in place.
-# - Mask area where the amplitude is very low (means noise)
 
 
 class GeometricalPhaseAnalysisTool:
@@ -542,7 +546,8 @@ class GeometricalPhaseAnalysisTool:
             component.original_metadata.g_vectors = self._g_matrix(angle=angle)
 
 
-    def plot_strain(self, components=None, same_figure=True, **kwargs):
+    def plot_strain(self, components=None, same_figure=True, threshold=0.1,
+                    **kwargs):
         """
         Convenient method to plot the strain maps.
 
@@ -555,6 +560,13 @@ class GeometricalPhaseAnalysisTool:
         same_figure : bool, optional
             If True, plot the strain components on the same figure.
             The default is True.
+        threshold : float, int or None, optional
+            If integer, all values of the average of the amplitude images will
+            be masked. If float, it must be a number between 0 and 1 and the
+            threshold value will be defined as the provided value multiplied
+            by the maximum of the average of amplitude images.
+            The default is 0.1, which corresponding to 10% of the maximum of
+            the average of the amplitdes image.
         **kwargs
             If same_figure=True, the keyword argument are passed to the
             hs.plot.plot_images hyperspy method, Othewise, they are passed to
@@ -565,6 +577,11 @@ class GeometricalPhaseAnalysisTool:
         None.
 
         """
+        if threshold is not None:
+            mask = self._get_mask_from_amplitude(threshold=threshold)
+        else:
+            mask = False
+
         default_values = {'cmap':'viridis',
                           'vmin':'1th',
                           'vmax':'99th',
@@ -585,9 +602,17 @@ class GeometricalPhaseAnalysisTool:
         elif isinstance(components, str):
             components = [components]
 
+        def get_components(component, mask):
+            signal = getattr(self, component)
+            if threshold is not None:
+                masked_data = np.ma.masked_array(to_numpy(signal.data),
+                                                 to_numpy(mask))
+                signal = signal._deepcopy_with_new_data(masked_data)
+            return signal
+
         vector_basis = self._g_matrix(normalised=True)
         if same_figure:
-            signals = [getattr(self, component) for component in components]
+            signals = [get_components(component, mask) for component in components]
             fig = kwargs.get('fig', plt.figure(figsize=(12, 4.8)))
             axs = hs.plot.plot_images(signals, fig=fig, **kwargs)
             add_vector_basis(vector_basis, ax=axs[-1], labels=['x', 'y'],
@@ -597,10 +622,42 @@ class GeometricalPhaseAnalysisTool:
                 plt.tight_layout(rect=[0, 0, 0.9, 1])
         else:
             for component in components:
-                s = getattr(self, component)
+                s = get_components(component, mask)
                 s.plot(**kwargs)
                 add_vector_basis(vector_basis, ax=s._plot.signal_plot.ax,
                                  labels=['x', 'y'])
+
+    def _get_mask_from_amplitude(self, threshold=0.1):
+        """
+        Get a mask from the amplitude images. The mask is determine the
+        average of the amplitude images, where all values smaller than the
+        threshold is considered as masked (value is True).
+
+        Parameters
+        ----------
+        threshold : float or int, optional
+            If integer, all values of the average of the amplitude images will
+            be masked. If float, it must be a number between 0 and 1 and the
+            threshold value will be defined as the provided value multiplied
+            by the maximum of the average of amplitude images.
+            The default is 0.1, which corresponding to 10% of the maximum of
+            the average of the amplitdes image.
+
+        Returns
+        -------
+        bool array
+            Array where the values below the threshold are True.
+
+        """
+        amplitude = np.array([amp.data for amp in self.amplitudes.values()],
+                             like=self.signal.data)
+        amplitude = amplitude.mean(axis=0)
+
+        if isinstance(threshold, float):
+            threshold = amplitude.max() * threshold
+
+        return (amplitude < threshold)
+
 
     def _a_matrix(self, calibrated=False):
         """
