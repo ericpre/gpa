@@ -11,7 +11,7 @@ import hyperspy.api as hs
 from hyperspy.roi import BaseROI, RectangularROI
 import pint
 
-from gpa.drawing import add_vector_basis
+from gpa.drawing import add_vector_basis, add_roi_to_signal_plot
 from gpa.utils import relative2value, rotation_matrix, rotate_strain_tensor
 
 
@@ -29,6 +29,7 @@ class GeometricalPhaseAnalysisTool:
         self.rois = {}
         self.refinement_roi = None
         self.phases = {}
+        self.amplitudes = {}
         self._synchronise_roi_radius = synchronise_roi_radius
 
         self.angle = None
@@ -119,25 +120,6 @@ class GeometricalPhaseAnalysisTool:
         if not self.synchronise_roi_radius or not (_plot and _plot.is_active):
             for roi in rois[1:]:
                 roi.r = spatial_resolution2sigma(value)
-
-    def _set_phase(self, *phases):
-        """
-        Set the geomatrical phases images to be used for the analysis.
-
-        Parameters
-        ----------
-        phases : GeometricalPhaseImage or list of GeometricalPhaseImage
-            Phase to be used for the analysis.
-
-        Returns
-        -------
-        None.
-
-        """
-        for i, phase in enumerate(phases, start=1):
-            key = f'g{i}'
-            phase.metadata.General.title = f'{key} reduced Phase'
-            self.phases[key] = phase
 
     def g_vectors(self, calibrated=True):
         """
@@ -300,6 +282,15 @@ class GeometricalPhaseAnalysisTool:
             self._add_roi(f'g{i}', *args)
 
     def remove_rois(self):
+        """
+        Remove the ROI(s) from the power spectrum (if displayed) and reset the
+        phase and amplitude images and rois.
+
+        Returns
+        -------
+        None.
+
+        """
         _plot = self._get_fft_plot()
         if _plot and _plot.is_active:
             for roi in self.rois.values():
@@ -307,6 +298,8 @@ class GeometricalPhaseAnalysisTool:
                     w.close(render_figure=False)
             _plot.signal_plot.render_figure()
         self.rois = {}
+        self.phases = {}
+        self.amplitude = {}
 
     def set_refinement_roi(self, roi=None):
         """
@@ -333,8 +326,10 @@ class GeometricalPhaseAnalysisTool:
         self.refinement_roi = roi
 
         for phase in self.phases.values():
-            if phase._plot is not None and phase._plot.is_active:
-                phase.plot_refinement_roi(roi)
+            add_roi_to_signal_plot(phase, roi)
+
+        for amplitude in self.amplitudes.values():
+            add_roi_to_signal_plot(phase, roi)
 
     def _get_default_refinement_roi(self):
         signal_axes = self.signal.axes_manager.signal_axes
@@ -352,8 +347,12 @@ class GeometricalPhaseAnalysisTool:
         None.
 
         """
-        self._set_phase(*[self.fft_signal.get_phase_from_roi(roi, True, g, unwrap)
-                          for g, roi in self.rois.items()])
+        kwargs = {'reduced':True, 'unwrap':unwrap,
+                  'also_return_amplitude': True}
+
+        for g, roi in self.rois.items():
+            res = self.fft_signal.get_phase_from_roi(roi, g, **kwargs)
+            self.phases[g], self.amplitudes[g] = res
 
     def plot_phase(self, refinement_roi=True, **kwargs):
         """
@@ -381,7 +380,35 @@ class GeometricalPhaseAnalysisTool:
             phase.plot(**kwargs)
 
             if refinement_roi and self.refinement_roi is not None:
-                phase.plot_refinement_roi(self.refinement_roi)
+                add_roi_to_signal_plot(phase, self.refinement_roi)
+
+    def plot_amplitude(self, refinement_roi=True, **kwargs):
+        """
+        Plot the amplitude for each g-vector previously set.
+
+        Parameters
+        ----------
+        refinement_roi : bool, optional
+            If True, also add the refinement ROI. If no refinement ROI have
+            been previously, a rectangular ROI is added in the middle of the
+            image. The default is True.
+
+        **kwargs
+            The keywords argument are passed to the plot method of the hyperspy
+            Signal2D.
+
+        Returns
+        -------
+        None.
+
+        """
+        for amplitude in self.amplitudes.values():
+            if 'cmap' not in kwargs:
+                kwargs['cmap'] = 'viridis'
+            amplitude.plot(**kwargs)
+
+            if refinement_roi and self.refinement_roi is not None:
+                add_roi_to_signal_plot(amplitude, self.refinement_roi)
 
     def refine_phase(self):
         """

@@ -5,7 +5,6 @@
 
 import numpy as np
 from hyperspy._signals.signal2d import Signal2D
-from hyperspy.roi import BaseROI
 
 from gpa.utils import gradient_phase
 
@@ -17,23 +16,6 @@ class GeometricalPhaseImage(Signal2D):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._gradient = None
-
-    def plot_refinement_roi(self, roi):
-        """
-        Add a roi to the figure to define the refinement area.
-
-        Parameters
-        ----------
-        roi : ROI
-            ROI defining the refinement area.
-
-        """
-        if not isinstance(roi, BaseROI):
-            raise ValueError("A valid hyperspy ROI must be provided. "
-                             f"Provided ROI: {roi}")
-
-        if self._plot is not None and self._plot.is_active:
-            roi.add_widget(self, self.axes_manager.signal_axes)
 
     def refine_phase(self, refinement_roi):
         """

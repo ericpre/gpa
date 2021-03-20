@@ -219,7 +219,8 @@ class AtomicResolutionFFT(ComplexSignal2D):
 
         return out
 
-    def get_phase_from_roi(self, roi, reduced=False, name='g', unwrap=True):
+    def get_phase_from_roi(self, roi, name='g', reduced=False, unwrap=False,
+                           also_return_amplitude=False):
         """
         Get the geometrical phase of the area defined by the provided ROI.
 
@@ -231,6 +232,14 @@ class AtomicResolutionFFT(ComplexSignal2D):
             If True, the phase is centered around the zero component frequency
             (substract the average phase from the phase).
             The default is False.
+        name : str
+            The name of the corresponding vector.
+        unwrap : bool
+            Define whether to unwrap the phase or not. Not supported for cupy
+            array. Default is False.
+        also_return_amplitude : bool
+            Determine if the amplitude also need to be returned along the
+            phase. Default is False.
 
         Returns
         -------
@@ -238,12 +247,12 @@ class AtomicResolutionFFT(ComplexSignal2D):
             Geometrical phase as defined by the ROI.
 
         """
-        phase = self._bragg_filtering(roi, return_real=False)
+        complex_bragg = self._bragg_filtering(roi, return_real=False)
 
         if unwrap:
-            phase = phase.unwrapped_phase(show_progressbar=False)
+            phase = complex_bragg.unwrapped_phase(show_progressbar=False)
         else:
-            phase.data = np.angle(phase.data)
+            phase = complex_bragg.phase
 
         if reduced:
             g_vector_px = np.array(roi[:2]) / self._get_g_convertion_factor(like=np.ones(1))
@@ -251,11 +260,21 @@ class AtomicResolutionFFT(ComplexSignal2D):
 
         phase.set_signal_type('geometrical_phase')
         phase.g_vector = vector_from_roi(roi)
-        title = 'Reduced phase image' if reduced else 'Phase image'
-        phase.metadata.General.title = title
+        title = 'Reduced Phase Image' if reduced else 'Phase Image'
+        phase.metadata.General.title = f'{name} {title}'
         phase.metadata.set_item('GPA.phase_from_roi', f'{roi}')
 
-        return phase
+        if also_return_amplitude:
+            amplitude = complex_bragg.amplitude
+            amplitude.g_vector = vector_from_roi(roi)
+            title = 'Amplitude Image'
+            amplitude.metadata.General.title = f'{name} {title}'
+            amplitude.metadata.set_item('GPA.amplitude_from_roi', f'{roi}')
+            amplitude.set_signal_type('')
+
+            return phase, amplitude
+        else:
+            return phase
 
     def _calculate_phase_from_g(self, g):
         shape = self.axes_manager.signal_shape
