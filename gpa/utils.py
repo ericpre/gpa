@@ -50,8 +50,8 @@ def get_mask_from_roi(signal, roi, axes=None, gaussian=True):
     if hasattr(roi, 'cx'):
         # CircleROI
         radius = roi.r
-        cx = roi.cx + 0.5001 * axes[0].scale
-        cy = roi.cy + 0.5001 * axes[1].scale
+        cx = roi.cx
+        cy = roi.cy
         r = np.linalg.norm([cx, cy]) * 0.8
         # The factor of 3 come from an estimate of how far the tail of the
         # Gaussian goes; to avoid getting the zero-frequency component in
@@ -81,21 +81,18 @@ def get_mask_from_roi(signal, roi, axes=None, gaussian=True):
         disk_mask = gr > radius_slice**2
 
         if gaussian:
-            mask = BaseSignal(np.zeros(signal.data.shape))
-            mask.axes_manager.set_signal_dimension(
-                signal.axes_manager.signal_dimension)
-            x = np.arange(slices[0].stop - slices[0].start)
-            y = np.arange(slices[1].stop - slices[1].start)
-            xx, yy = np.meshgrid(x, y)
-            sigma = radius / axes[0].scale
-
             import hyperspy.api as hs
+            mask = hs.signals.Signal2D(np.zeros(signal.data.shape))
+            x = np.linspace(ranges[0][0], ranges[0][1], disk_mask.shape[1])
+            y = np.linspace(ranges[1][0], ranges[1][1], disk_mask.shape[0])
+            xx, yy = np.meshgrid(x, y)
+
             gaussian2d = hs.model.components2D.Gaussian2D(
-                sigma_x=sigma,
-                sigma_y=sigma,
-                centre_x=len(x)/2,
-                centre_y=len(y)/2,
-                A=2*np.pi*sigma**2)
+                sigma_x=radius,
+                sigma_y=radius,
+                centre_x=cx,
+                centre_y=cy,
+                A=2*np.pi*radius**2)
             mask_circle = gaussian2d.function(xx, yy) * ~disk_mask
         else:
             mask = BaseSignal(np.full(signal.data.shape, True, dtype=bool))

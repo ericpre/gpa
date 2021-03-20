@@ -163,7 +163,7 @@ def test_refine_phase(gpa_tool, rois, refinement_roi, refinement_roi_args):
     strained_area_roi = hs.roi.RectangularROI(*strained_area_roi_args)
     strain_area = strained_area_roi(gpa_tool.e_xx).data.mean()
     # strain error due to sampling, larger number of pixels would improve
-    np.testing.assert_almost_equal(strain_area, 0.0974, decimal=3)
+    np.testing.assert_almost_equal(strain_area, 0.096, decimal=3)
 
 
 def test_refine_phase_default(gpa_tool, rois):
