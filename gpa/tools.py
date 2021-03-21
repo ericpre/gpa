@@ -23,6 +23,9 @@ from gpa.utils import (
 # TODO:
 # - refactor phase refinement/phase calculation to be able to update the phase
 #   in place.
+# - Add option to define the reference area globally or individually; at the
+#   moment, it is global: the reference is average over all images.
+# - Allow navigation dimension higher than 1 (fiddle with unfold)
 
 
 class GeometricalPhaseAnalysisTool:
@@ -38,13 +41,11 @@ class GeometricalPhaseAnalysisTool:
 
         self.angle = None
 
-        self.u_x = None
-        self.u_y = None
+        # self.u_x = None
+        # self.u_y = None
 
         self.e_xx = None
         self.e_xy = None
-        self.e_yy = None
-        self.e_yx = None
         self.theta = None
         self.omega = None
 
@@ -432,41 +433,41 @@ class GeometricalPhaseAnalysisTool:
             roi.cx -= g_refinement[0]
             roi.cy -= g_refinement[1]
 
-    def calculate_displacement(self, angle=None):
-        """
-        Calculate the displacement maps along the x and y axis from the phase
-        images.
+    # def calculate_displacement(self, angle=None):
+    #     """
+    #     Calculate the displacement maps along the x and y axis from the phase
+    #     images.
 
-        Parameters
-        ----------
-        angle : float or None, optional
-            Set the angle of the x vector relative to the horizontal axis
+    #     Parameters
+    #     ----------
+    #     angle : float or None, optional
+    #         Set the angle of the x vector relative to the horizontal axis
 
-        Returns
-        -------
-        u_x, u_y : np.ndarray of dimension 2
-            Displacement map along the x and y axis
+    #     Returns
+    #     -------
+    #     u_x, u_y : np.ndarray of dimension 2
+    #         Displacement map along the x and y axis
 
-        """
-        if angle is not None:
-            self.angle = angle
+    #     """
+    #     if angle is not None:
+    #         self.angle = angle
 
-        shape = self.signal.axes_manager.signal_shape
-        phases = [phase.data.flatten() for phase in self.phases.values()]
-        # only one g, append nul phase
-        if len(phases) == 1:
-            phases.append(np.zeros(np.multiply(*shape)))
+    #     shape = self.signal.axes_manager.signal_shape
+    #     phases = [phase.data.flatten() for phase in self.phases.values()]
+    #     # only one g, append nul phase
+    #     if len(phases) == 1:
+    #         phases.append(np.zeros(np.multiply(*shape)))
 
-        phase_matrix = np.vstack(phases)
-        U = self._a_matrix() @ phase_matrix / (-2*np.pi)
+    #     phase_matrix = np.vstack(phases)
+    #     U = self._a_matrix() @ phase_matrix / (-2*np.pi)
 
-        self.u_x = hs.signals.Signal2D(U[0].reshape(shape))
-        self.u_x.metadata.Signal.quantity = "$u_{x}$"
+    #     self.u_x = hs.signals.Signal2D(U[0].reshape(shape))
+    #     self.u_x.metadata.Signal.quantity = "$u_{x}$"
 
-        self.u_y = hs.signals.Signal2D(U[1].reshape(shape))
-        self.u_y.metadata.Signal.quantity = "$u_{y}$"
+    #     self.u_y = hs.signals.Signal2D(U[1].reshape(shape))
+    #     self.u_y.metadata.Signal.quantity = "$u_{y}$"
 
-        return self.u_x, self.u_y
+    #     return self.u_x, self.u_y
 
     def _get_grad_phase_array(self):
         phase_grad = []
@@ -474,7 +475,7 @@ class GeometricalPhaseAnalysisTool:
         for phase in self.phases.values():
             if phase._gradient is None:
                 phase.gradient()
-            with phase._gradient.unfolded():
+            with phase._gradient.unfolded(unfold_navigation=False):
                 phase_grad.append(phase._gradient.data)
 
         shape = self.signal.axes_manager.signal_shape
@@ -501,40 +502,79 @@ class GeometricalPhaseAnalysisTool:
         """
         from gpa.signals import StrainComponent
 
-        e = self._a_matrix() @ self._get_grad_phase_array() / (-2*np.pi)
+        axes_list = list(self.signal.axes_manager.as_dictionary().values())
+        empty_like_args = (self.signal.data, np.float32)
+        e_xx = StrainComponent(np.empty_like(*empty_like_args), axes=axes_list)
+        e_xx.metadata.General.title = r"$\epsilon_{xx}$"
+        e_xx.metadata.Signal.quantity = r"$\epsilon_{xx}$"
+
+        e_yy = StrainComponent(np.empty_like(*empty_like_args), axes=axes_list)
+        e_yy.metadata.General.title = r"$\epsilon_{yy}$"
+        e_yy.metadata.Signal.quantity = r"$\epsilon_{yy}$"
+
+        theta = StrainComponent(np.empty_like(*empty_like_args), axes=axes_list)
+        theta.metadata.General.title = r"$\theta$"
+        theta.metadata.Signal.quantity = r"$\theta$"
+
+        omega = StrainComponent(np.empty_like(*empty_like_args), axes=axes_list)
+        omega.metadata.General.title = r"$\omega$"
+        omega.metadata.Signal.quantity = r"$\omega$"
 
         if angle is not None:
             self.angle = angle
-            e = rotate_strain_tensor(angle, e[0, 0], e[1, 1], e[1, 0], e[0, 1],
-                                     like=self.fft_signal.data)
 
-        shape = self.signal.axes_manager.signal_shape[::-1]
-        e_xx = e[0, 0].T.reshape(shape)
-        e_yy = e[1, 1].T.reshape(shape)
-        e_yx = e[1, 0].T.reshape(shape)
-        e_xy = e[0, 1].T.reshape(shape)
+        def get_strain_tensor(a_matrix, grad_phase_array, angle=None):
+            e = a_matrix @ grad_phase_array / (-2*np.pi)
 
-        axes_list = list(self.signal.axes_manager.as_dictionary().values())
-        self.e_xx = StrainComponent(e_xx, axes=axes_list)
-        self.e_xx.metadata.General.title = r"$\epsilon_{xx}$"
-        self.e_xx.metadata.Signal.quantity = r"$\epsilon_{xx}$"
+            if angle is not None:
+                e = rotate_strain_tensor(angle, e[0, 0], e[1, 1], e[1, 0], e[0, 1],
+                                         like=grad_phase_array)
 
-        self.e_yy = StrainComponent(e_yy, axes=axes_list)
-        self.e_yy.metadata.General.title = r"$\epsilon_{yy}$"
-        self.e_yy.metadata.Signal.quantity = r"$\epsilon_{yy}$"
+            shape = self.signal.axes_manager.signal_shape[::-1]
+            _e_xx = e[0, 0].T.reshape(shape)
+            _e_yy = e[1, 1].T.reshape(shape)
+            _e_yx = e[1, 0].T.reshape(shape)
+            _e_xy = e[0, 1].T.reshape(shape)
+            _theta = 0.5*(_e_xy + _e_yx)
+            _omega = 0.5*(_e_xy - _e_yx)
 
-        self.theta = StrainComponent(0.5*(e_xy + e_yx), axes=axes_list)
-        self.theta.metadata.General.title = r"$\theta$"
-        self.theta.metadata.Signal.quantity = r"$\theta$"
+            return _e_xx, _e_yy, _theta, _omega
 
-        self.omega = StrainComponent(0.5*(e_xy - e_yx), axes=axes_list)
-        self.omega.metadata.General.title = r"$\omega$"
-        self.omega.metadata.Signal.quantity = r"$\omega$"
+        a_matrix = self._a_matrix()
+        grad_phase_array = self._get_grad_phase_array()
+        if self.signal.axes_manager.navigation_dimension == 0:
+            e_xx.data, e_yy.data, theta.data, omega.data = get_strain_tensor(
+                a_matrix,
+                grad_phase_array,
+                angle
+                )
+        elif self.signal.axes_manager.navigation_dimension == 1:
+            for index in self.signal.axes_manager:
+                # the first axis contains the phases g0 and g1
+                # the second axis contains the x, y compoments of the gradient
+                # in the middle are the navigation axis
+                # and finaly the signal axes
+                index = index[0]
+                e_xx.data[index], e_yy.data[index], theta.data[index], \
+                    omega.data[index] = get_strain_tensor(
+                    a_matrix,
+                    grad_phase_array[:, :, index, :].squeeze(),
+                    angle
+                    )
+        else:
+            # Index the grad_phase_array in a way that support higher
+            # navigation dimension
+            raise RuntimeError('Navigation dimension higher than 1 is not '
+                               'supported.')
+
+        self.e_xx = e_xx
+        self.e_yy = e_yy
+        self.theta = theta
+        self.omega = omega
 
         for name in ['e_xx', 'e_yy', 'theta', 'omega']:
             component = getattr(self, name)
             component.original_metadata.g_vectors = self._g_matrix(angle=angle)
-
 
     def plot_strain(self, components=None, same_figure=True, threshold=0.1,
                     **kwargs):
@@ -567,6 +607,8 @@ class GeometricalPhaseAnalysisTool:
         None.
 
         """
+        if self.e_xx is None:
+            raise ValueError('The strain needs to be calculated first')
         if threshold is not None:
             mask = self._get_mask_from_amplitude(threshold=threshold)
         else:

@@ -4,7 +4,7 @@
 # All rights reserved.
 
 import numpy as np
-from hyperspy._signals.signal2d import Signal2D
+from gpa.signals import AtomicResolution
 
 
 def get_atomic_resolution(size_x=200, size_y=200, spacing_x=15, spacing_y=15,
@@ -22,7 +22,6 @@ def get_atomic_resolution(size_x=200, size_y=200, spacing_x=15, spacing_y=15,
     >>> s.plot()
 
     """
-    from hyperspy.signals import Signal2D
     from hyperspy import components2d
 
     x_array, y_array = np.mgrid[0:size_x, 0:size_y]
@@ -39,8 +38,7 @@ def get_atomic_resolution(size_x=200, size_y=200, spacing_x=15, spacing_y=15,
         for j, y in enumerate(range(int(spacing_y/2), int(size_y-spacing_y/2), spacing_y)):
             image[i*spacing_x:(i+1)*spacing_x, j*spacing_x:(j+1)*spacing_x] += gaussian_peak
 
-    s = Signal2D(image)
-    s.set_signal_type('atomic_resolution')
+    s = AtomicResolution(image)
 
     if rotation_angle != 0:
         from scipy.ndimage import rotate
@@ -65,8 +63,7 @@ def get_atomic_resolution_interface(size=2048, spacing=14, strain=-0.02,
 
     s0 = get_atomic_resolution(size, size/2, spacing, spacing) * 1E5
     s1 = s0.rebin(scale=(1+strain, 1))
-    s = Signal2D(np.hstack([_s.data for _s in [s0, s1]])[:size, :size])
-    s.set_signal_type('atomic_resolution')
+    s = AtomicResolution(np.hstack([_s.data for _s in [s0, s1]])[:size, :size])
     s0_axis = s0.axes_manager.signal_axes[0]
     for axis in s.axes_manager.signal_axes:
         axis.scale = s0_axis.scale

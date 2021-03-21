@@ -90,7 +90,7 @@ def test_gpa1D(gpa_tool, rois):
     assert isinstance(phase, gpa.signals.GeometricalPhaseImage)
     np.testing.assert_allclose(phase.g_vector, roi[:2])
 
-    gpa_tool.calculate_displacement()
+    # gpa_tool.calculate_displacement()
     gpa_tool.calculate_strain()
     assert_strain_components(gpa_tool)
 
@@ -104,8 +104,7 @@ def test_gpa2D(gpa_tool, rois):
         assert isinstance(gpa_tool.phases['g1'], gpa.signals.GeometricalPhaseImage)
         np.testing.assert_allclose(phase.g_vector, roi[:2])
 
-
-    gpa_tool.calculate_displacement()
+    # gpa_tool.calculate_displacement()
     gpa_tool.calculate_strain()
     assert_strain_components(gpa_tool)
 
@@ -125,7 +124,7 @@ def test_add_remove_rois(gpa_tool, rois):
     gpa_tool.add_rois(rois)
     gpa_tool.plot_power_spectrum()
     for roi, expected_roi_arg in zip(gpa_tool.rois.values(), rois):
-        assert list(roi) == expected_roi_arg
+        assert list(roi)[:3] == expected_roi_arg
 
     gpa_tool.remove_rois()
     assert gpa_tool.rois == {}
@@ -317,3 +316,48 @@ def test_spatial_resolution(gpa_tool, rois, plot):
         gpa_tool.spatial_resolution
     for roi in gpa_tool.rois.values():
         np.testing.assert_allclose(roi.r, 0.4340589)
+
+
+def test_gpa_stack(rois, refinement_roi):
+
+    def get_interface_image(strain=0.1):
+        _s = gpa.datasets.get_atomic_resolution_interface(
+            size=512, spacing=14, strain=-strain)
+        _s.add_gaussian_noise(100)
+        return _s
+
+    strain_values = [0.05, 0.075, 0.1]
+
+    s = hs.stack([get_interface_image(strain) for strain in strain_values],
+                 show_progressbar=False)
+    s.set_signal_type('atomic_resolution')
+
+    gpa_tool = s.create_gpa_tool()
+    gpa_tool.set_fft()
+
+    # Add ROIs for the two g_vectors
+    gpa_tool.add_rois(rois)
+    gpa_tool.calculate_phase()
+
+    # # Add refinement ROI and refine phase
+    gpa_tool.set_refinement_roi(refinement_roi)
+    gpa_tool.refine_phase()
+
+    # # Calculate strain
+    gpa_tool.calculate_strain()
+
+    np.testing.assert_allclose(gpa_tool.g_vectors()['g1'],
+                               np.array([4.7471, 0.0]), atol=5E-3)
+    np.testing.assert_allclose(gpa_tool.g_vectors()['g2'],
+                               np.array([-1.02912e-04, -4.7519]), atol=5E-3)
+
+    ref_area_strain = refinement_roi(gpa_tool.e_xx).data.mean()
+    np.testing.assert_almost_equal(ref_area_strain, 1E-8)
+
+    strained_area_roi_args = [4.5, 0.2, 7.2, 7.2]
+    strained_area_roi = hs.roi.RectangularROI(*strained_area_roi_args)
+    strain_area = strained_area_roi(gpa_tool.e_xx).mean((1, 2))
+
+    for i, strain in enumerate(strain_values):
+        # strain error due to sampling, larger number of pixels would improve
+        np.testing.assert_almost_equal(strain_area.data[i], strain*0.96, decimal=3)

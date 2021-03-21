@@ -153,7 +153,7 @@ def rotate_strain_tensor(angle, exx, eyy, eyx, exy, like):
     return np.array([[nexx, nexy], [neyx, neyy]], like=like)
 
 
-def gradient_phase(phase, flatten=False):
+def gradient_phase(phase, axis, flatten=False):
     """ Calculate the gradient of the phase
 
     Parameters
@@ -169,7 +169,7 @@ def gradient_phase(phase, flatten=False):
     """
 
     phase = 1j * phase
-    x, y = np.imag(np.exp(-phase) * np.array(np.gradient(np.exp(phase), axis=(1, 0)), like=phase))
+    x, y = np.imag(np.exp(-phase) * np.array(np.gradient(np.exp(phase), axis=axis), like=phase))
 
     if flatten:
         return np.array([x.flatten(), y.flatten()], like=phase)

@@ -38,8 +38,17 @@ class GeometricalPhaseImage(Signal2D):
         if self._gradient is None:
             raise RuntimeError("Gradient needs to be calculated first.")
 
+        if self.axes_manager.navigation_size == 0:
+            reference = self._gradient
+        else:
+            # Average over the navigation dimensions, the last navigation
+            # axis of the gradient are the two x, y compoments of the gradient
+            nav_axis = self._gradient.axes_manager.navigation_axes[:-1]
+            reference = self._gradient.mean(axis=nav_axis)
+
+        axis = reference.axes_manager.signal_indices_in_array
         # Refine the gradient of the phase
-        grad_refinement = refinement_roi(self._gradient).data.mean(axis=(-2, -1))
+        grad_refinement = reference.isig[refinement_roi].data.mean(axis=axis)
         # cupy broadcasting is not yet supported in hyperspy
         for i in range(2):
             self._gradient.data[i] -= grad_refinement[i]
@@ -58,8 +67,9 @@ class GeometricalPhaseImage(Signal2D):
         Appendix D in Hytch et al. Ultramicroscopy 1998
         """
         # Unfortunatelly, BaseSignal.map doesn't work in this case, axes_manager
-        # set wrongly, we need to workaround it
-        self._gradient = Signal2D(gradient_phase(self.data), flatten=False)
+        # set wrongly, we need to workaround
+        axis = self.axes_manager.signal_indices_in_array
+        self._gradient = Signal2D(gradient_phase(self.data, axis=axis))
         for ax1, ax2 in zip(self._gradient.axes_manager.signal_axes,
                             self.axes_manager.signal_axes):
             ax1.scale = ax2.scale

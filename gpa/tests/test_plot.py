@@ -70,3 +70,10 @@ def test_plot_refinement_roi(gpa_tool, rois):
     assert [roi.left, roi.top, roi.right, roi.bottom] == refinement_roi
 
     gpa_tool.plot_phase()
+
+
+def test_plot_error_strain_calculation_missing(gpa_tool, rois):
+    gpa_tool.add_rois(rois)
+    gpa_tool.calculate_phase()
+    with pytest.raises(ValueError):
+        gpa_tool.plot_strain()
