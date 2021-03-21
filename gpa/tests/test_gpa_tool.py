@@ -26,12 +26,6 @@ def assert_strain_components(gpa_tool):
         assert isinstance(getattr(gpa_tool, component), hs.signals.Signal2D)
 
 
-def test_gpa_tool_error(gpa_tool, rois):
-    gpa_tool.fft_signal = None
-    with pytest.raises(RuntimeError):
-        gpa_tool.add_rois(rois[:1])
-
-
 def test_single_g_vectors(gpa_tool, rois):
     gpa_tool.add_rois(rois[:1])
     g_vectors = gpa_tool.g_vectors()

@@ -9,7 +9,7 @@ Created on Sat Mar 20 16:09:25 2021
 from hyperspy.roi import BaseROI
 
 
-def add_roi_to_signal_plot(signal, roi):
+def add_roi_to_signal_plot(signal, roi, snap=True):
     """
     Add a roi to the figure to define the refinement area.
 
@@ -24,4 +24,8 @@ def add_roi_to_signal_plot(signal, roi):
                          f"Provided ROI: {roi}")
 
     if signal._plot is not None and signal._plot.is_active:
-        roi.add_widget(signal, signal.axes_manager.signal_axes)
+        try:
+            roi.add_widget(signal, signal.axes_manager.signal_axes, snap=snap)
+        except TypeError:
+            # HyperSpy version doesn't support snap argument
+            roi.add_widget(signal, signal.axes_manager.signal_axes)

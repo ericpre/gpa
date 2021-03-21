@@ -215,23 +215,7 @@ class GeometricalPhaseAnalysisTool:
         ax.set_ylim(-start[1], -end[1])
 
         for roi in self.rois.values():
-            roi.add_widget(self.fft_signal,
-                           axes=self.fft_signal.axes_manager.signal_axes)
-
-    def _add_roi(self, g, *args):
-        roi = hs.roi.CircleROI(*args)
-        if self.fft_signal is None:
-            raise RuntimeError("The Fourier Transform must be computed first.")
-        if self.fft_signal._plot is not None:
-            try:
-                roi.interactive(self.fft_signal, snap=False)
-            except TypeError:
-                # HyperSpy version doesn't support snap argument
-                roi.interactive(self.fft_signal)
-            if self.synchronise_roi_radius:
-                roi.events.changed.connect(self._sync_radius_roi, {'roi': 'roi'})
-
-        self.rois[g] = roi
+            add_roi_to_signal_plot(self.fft_signal, roi, snap=False)
 
     def _sync_radius_roi(self, roi):
         for _roi in self.rois.values():
@@ -283,7 +267,13 @@ class GeometricalPhaseAnalysisTool:
             roi_args = [[roi_args, 0, 2],
                         [0, roi_args, 2]]
         for i, args in enumerate(roi_args, start=1):
-            self._add_roi(f'g{i}', *args)
+            roi = hs.roi.CircleROI(*args)
+            self.rois[f'g{i}'] = roi
+            if self.fft_signal is not None:
+                add_roi_to_signal_plot(self.fft_signal, roi, snap=False)
+
+            if self.synchronise_roi_radius:
+                roi.events.changed.connect(self._sync_radius_roi, {'roi': 'roi'})
 
     def remove_rois(self):
         """
