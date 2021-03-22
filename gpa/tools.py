@@ -16,7 +16,8 @@ from gpa.utils import (
     relative2value,
     rotation_matrix,
     rotate_strain_tensor,
-    to_numpy
+    to_numpy,
+    export_signal_as_animation
     )
 
 
@@ -577,7 +578,7 @@ class GeometricalPhaseAnalysisTool:
             component.original_metadata.g_vectors = self._g_matrix(angle=angle)
 
     def plot_strain(self, components=None, same_figure=True, threshold=0.1,
-                    **kwargs):
+                    save_figure=False, filename='strain', **kwargs):
         """
         Convenient method to plot the strain maps.
 
@@ -597,6 +598,12 @@ class GeometricalPhaseAnalysisTool:
             by the maximum of the average of amplitude images.
             The default is 0.1, which corresponding to 10% of the maximum of
             the average of the amplitdes image.
+        save_figure : bool
+            Save the figure using the `matplotlib.pyplot.savefig` function if
+            ``same_figure=True`` or the `gpa.utils.export_signal_as_animation`
+            function when ``same_figure=False``.
+        filename : str
+            Name of the file. Only when ``save_figure=True``
         **kwargs
             If same_figure=True, the keyword argument are passed to the
             hs.plot.plot_images hyperspy method, Othewise, they are passed to
@@ -605,6 +612,10 @@ class GeometricalPhaseAnalysisTool:
         Returns
         -------
         None.
+
+        See Also
+        --------
+        gpa.utils.export_signal_as_animation
 
         """
         if self.e_xx is None:
@@ -652,12 +663,19 @@ class GeometricalPhaseAnalysisTool:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", category=UserWarning)
                 plt.tight_layout(rect=[0, 0, 0.9, 1])
+
+            if save_figure:
+                plt.savefig(filename)
+            return axs
+
         else:
             for component in components:
                 s = get_components(component, mask)
                 s.plot(**kwargs)
-                add_vector_basis(vector_basis, ax=s._plot.signal_plot.ax,
-                                 labels=['x', 'y'])
+                ax = s._plot.signal_plot.ax
+                add_vector_basis(vector_basis, ax=ax, labels=['x', 'y'])
+                if save_figure:
+                    export_signal_as_animation(s, filename=filename)
 
     def _get_mask_from_amplitude(self, threshold=0.1):
         """

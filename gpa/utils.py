@@ -3,6 +3,7 @@
 # Copyright (c) 2020, Eric Prestat
 # All rights reserved.
 
+import matplotlib.animation as animation
 import numpy as np
 
 from hyperspy.roi import CircleROI
@@ -262,3 +263,46 @@ def get_ndi_module(array):
     else:
         from scipy import ndimage
         return ndimage
+
+
+def export_signal_as_animation(signal, filename, **kwargs):
+    """
+    Generate a matplotlib animation and save it as a file. The signal will
+    iterate over the navigation indices.
+
+    Parameters
+    ----------
+    signal : BaseSignal instance
+        The signal to save as an animation.
+    filename : str
+        Name of the file.
+    **kwargs : dict
+        The keyword argument are passed to
+        `matplotlib.animation.Animation.save`
+
+    Returns
+    -------
+    matplotlib.animation.Animation
+        The matplotlib animation of the signal.
+
+    """
+
+    if signal._plot is None or not signal._plot.is_active:
+        signal.plot()
+
+    _plot = signal._plot.signal_plot
+    signal.axes_manager.indices = (0, )
+    fig = _plot.ax.figure
+
+    frames = signal.axes_manager.navigation_axes[0].size
+
+    def update(i):
+        signal.axes_manager.indices = (i, )
+        return _plot.ax.images
+
+    ani = animation.FuncAnimation(fig, update, frames=frames,
+                                  blit=_plot.figure.canvas.supports_blit,
+                                  repeat=False)
+
+    ani.save(filename, **kwargs)
+    return ani

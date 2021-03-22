@@ -6,7 +6,7 @@
 import gpa
 import hyperspy.api as hs
 
-size = 512
+size = 1024
 
 def get_interface_image(strain=0.1):
     _s = gpa.datasets.get_atomic_resolution_interface(
@@ -39,4 +39,12 @@ gpa_tool.refine_phase()
 
 # # Calculate and plot strain
 gpa_tool.calculate_strain()
-gpa_tool.plot_strain(vmin=-0.1, vmax=0.1, same_figure=False, components='e_xx')
+gpa_tool.plot_strain(vmin=-0.1, vmax=0.1, same_figure=False, components='e_xx',
+                     save_figure=True, filename='strain-e_xx.tif')
+
+from gpa.utils import export_signal_as_animation
+
+# To have more flexibility in exporting the signal, use the
+# export_signal_as_animation function:
+gpa_tool.e_xx.plot(vmin=-0.1, vmax=0.1)
+export_signal_as_animation(gpa_tool.e_xx, 'strain-e_xx.gif', writer='imagemagick')
