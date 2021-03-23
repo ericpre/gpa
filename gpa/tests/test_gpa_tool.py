@@ -318,21 +318,9 @@ def test_spatial_resolution(gpa_tool, rois, plot):
         np.testing.assert_allclose(roi.r, 0.4340589)
 
 
-def test_gpa_stack(rois, refinement_roi):
+def test_gpa_stack(strain_values, gpa_tool_stack, rois, refinement_roi):
 
-    def get_interface_image(strain=0.1):
-        _s = gpa.datasets.get_atomic_resolution_interface(
-            size=512, spacing=14, strain=-strain)
-        _s.add_gaussian_noise(100)
-        return _s
-
-    strain_values = [0.05, 0.075, 0.1]
-
-    s = hs.stack([get_interface_image(strain) for strain in strain_values],
-                 show_progressbar=False)
-    s.set_signal_type('atomic_resolution')
-
-    gpa_tool = s.create_gpa_tool()
+    gpa_tool = gpa_tool_stack
     gpa_tool.set_fft()
 
     # Add ROIs for the two g_vectors

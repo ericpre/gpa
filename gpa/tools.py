@@ -578,9 +578,12 @@ class GeometricalPhaseAnalysisTool:
             component.original_metadata.g_vectors = self._g_matrix(angle=angle)
 
     def plot_strain(self, components=None, same_figure=True, threshold=0.1,
-                    save_figure=False, filename='strain', **kwargs):
+                    save_figure=False, filename='strain', display_figure=True,
+                    save_kwds={}, **kwargs):
         """
-        Convenient method to plot the strain maps.
+        Convenient method to plot the strain maps. This can also be used to
+        generated and export matplotlib animation of signals having navigation
+        dimension.
 
         Parameters
         ----------
@@ -604,6 +607,14 @@ class GeometricalPhaseAnalysisTool:
             function when ``same_figure=False``.
         filename : str
             Name of the file. Only when ``save_figure=True``
+        display_figure : bool
+            If True, don't display the figure, which is useful to export the
+            results. Default is True.
+        save_kwds : dict
+            Keyword argument dictionary passed to `matplotlib.pyplot.savefig`
+            if ``same_figure=True``, otherwise to
+            `matplotlib.animation.Animation.save`. Default is an empty
+            dictionary.
         **kwargs
             If same_figure=True, the keyword argument are passed to the
             hs.plot.plot_images hyperspy method, Othewise, they are passed to
@@ -617,7 +628,40 @@ class GeometricalPhaseAnalysisTool:
         --------
         gpa.utils.export_signal_as_animation
 
+        Examples
+        --------
+        >>> s = gpa.datasets.get_atomic_resolution_interface(
+                size=size, spacing=14, strain=-strain)
+        >>> s.add_gaussian_noise(100)
+        >>> gpa_tool = s.create_gpa_tool()
+        >>> gpa_tool.set_fft()
+        >>> g_rois = [[4.7, 0.0, 1.5], [0.0, -4.7, 1.5]]
+        >>> gpa_tool.add_rois(g_rois)
+        >>> gpa_tool.calculate_phase()
+        >>> gpa_tool.calculate_strain()
+
+        To plot the strain maps on a single figure
+
+        >>> gpa_tool.plot_strain(vmin=-0.1, vmax=0.1)
+
+        To save the figure without displaying it
+
+        >>> gpa_tool.plot_strain(vmin=-0.1, vmax=0.1, display_figure=False)
+
+        To export a multi-dimensional strain component as a gif animation, the
+        'imagemagick' is known to work better than the default 'pillow' writter
+        of matplotlib, however, it is an optional dependency of matplotlib and
+        may not be already installed.
+
+        >>> gpa_tool.plot_strain(vmin=-0.1, vmax=0.1, same_figure=False,
+                components='e_xx', save_figure=True,
+                filename='strain-e_xx.gif', display_figure=False,
+                save_kwds={'writer':'imagemagick'})
+
         """
+        if not display_figure:
+            backend = plt.get_backend()
+            plt.switch_backend('agg')
         if self.e_xx is None:
             raise ValueError('The strain needs to be calculated first')
         if threshold is not None:
@@ -665,8 +709,7 @@ class GeometricalPhaseAnalysisTool:
                 plt.tight_layout(rect=[0, 0, 0.9, 1])
 
             if save_figure:
-                plt.savefig(filename)
-            return axs
+                plt.savefig(filename, **save_kwds)
 
         else:
             for component in components:
@@ -675,7 +718,12 @@ class GeometricalPhaseAnalysisTool:
                 ax = s._plot.signal_plot.ax
                 add_vector_basis(vector_basis, ax=ax, labels=['x', 'y'])
                 if save_figure:
-                    export_signal_as_animation(s, filename=filename)
+                    export_signal_as_animation(s, filename=filename,
+                                               **save_kwds)
+
+        if not display_figure:
+            plt.switch_backend(backend)
+
 
     def _get_mask_from_amplitude(self, threshold=0.1):
         """

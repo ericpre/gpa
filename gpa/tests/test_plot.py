@@ -77,3 +77,26 @@ def test_plot_error_strain_calculation_missing(gpa_tool, rois):
     gpa_tool.calculate_phase()
     with pytest.raises(ValueError):
         gpa_tool.plot_strain()
+
+
+@pytest.mark.parametrize('same_figure', [True, False])
+def test_plot_strain(gpa_tool, rois, same_figure):
+    gpa_tool.add_rois(rois)
+    gpa_tool.calculate_phase()
+    gpa_tool.calculate_strain()
+    gpa_tool.plot_strain(same_figure=same_figure)
+
+
+def test_plot_strain_animation(gpa_tool_stack, rois, tmp_path):
+    gpa_tool = gpa_tool_stack
+    gpa_tool.add_rois(rois)
+    gpa_tool.calculate_phase()
+    gpa_tool.calculate_strain()
+    gpa_tool.plot_strain()
+
+    filename = tmp_path / 'strain-e_xx.gif'
+
+    gpa_tool.plot_strain(vmin=-0.1, vmax=0.1, same_figure=False,
+                         components='e_xx', save_figure=True,
+                         filename=filename, save_kwds={'writer':'pillow'},
+                         display_figure=False)

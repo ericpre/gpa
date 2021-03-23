@@ -267,8 +267,9 @@ def get_ndi_module(array):
 
 def export_signal_as_animation(signal, filename, **kwargs):
     """
-    Generate a matplotlib animation and save it as a file. The signal will
-    iterate over the navigation indices.
+    Generate a matplotlib animation of a plotted signal and save it as a file.
+    Only the signal figure is saved and the signal will iterate over the
+    navigation indices.
 
     Parameters
     ----------
@@ -288,7 +289,7 @@ def export_signal_as_animation(signal, filename, **kwargs):
     """
 
     if signal._plot is None or not signal._plot.is_active:
-        signal.plot()
+        raise RuntimeError("The signal must be plotted.")
 
     _plot = signal._plot.signal_plot
     signal.axes_manager.indices = (0, )

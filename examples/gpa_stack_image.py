@@ -39,12 +39,14 @@ gpa_tool.refine_phase()
 
 # # Calculate and plot strain
 gpa_tool.calculate_strain()
+gpa_tool.plot_strain(vmin=-0.1, vmax=0.1, same_figure=False, components='e_xx')
+
+
+# To export a multi-dimensional strain component as a gif animation, the
+# 'imagemagick' will generate smaller file than the default 'pillow' writter
+# of matplotlib, however, it is an optional dependency of matplotlib and
+# may not be already installed.
+
 gpa_tool.plot_strain(vmin=-0.1, vmax=0.1, same_figure=False, components='e_xx',
-                     save_figure=True, filename='strain-e_xx.tif')
-
-from gpa.utils import export_signal_as_animation
-
-# To have more flexibility in exporting the signal, use the
-# export_signal_as_animation function:
-gpa_tool.e_xx.plot(vmin=-0.1, vmax=0.1)
-export_signal_as_animation(gpa_tool.e_xx, 'strain-e_xx.gif', writer='imagemagick')
+                     save_figure=True, filename='strain-e_xx.gif',
+                     save_kwds={'writer':'imagemagick'}, display_figure=False)
