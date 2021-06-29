@@ -40,15 +40,32 @@ class GeometricalPhaseAnalysisTool:
         self.amplitudes = {}
         self._synchronise_roi_radius = synchronise_roi_radius
 
-        self.angle = None
+        self._angle = None
+        self._e_xx = None
+        self._e_yy = None
+        self._theta = None
+        self._omega = None
 
-        # self.u_x = None
-        # self.u_y = None
+    @property
+    def angle(self):
+        """ The angle of the rotation of the strain tensor"""
+        return self._angle
 
-        self.e_xx = None
-        self.e_xy = None
-        self.theta = None
-        self.omega = None
+    @property
+    def e_xx(self):
+        return self._e_xx
+
+    @property
+    def e_yy(self):
+        return self._e_yy
+
+    @property
+    def theta(self):
+        return self._theta
+
+    @property
+    def omega(self):
+        return self._omega
 
     @property
     def synchronise_roi_radius(self):
@@ -522,7 +539,7 @@ class GeometricalPhaseAnalysisTool:
         omega.metadata.Signal.quantity = r"$\omega$"
 
         if angle is not None:
-            self.angle = angle
+            self._angle = angle
 
         def get_strain_tensor(a_matrix, grad_phase_array, angle=None):
             e = a_matrix @ grad_phase_array / (-2*np.pi)
@@ -547,7 +564,7 @@ class GeometricalPhaseAnalysisTool:
             e_xx.data, e_yy.data, theta.data, omega.data = get_strain_tensor(
                 a_matrix,
                 grad_phase_array,
-                angle
+                self.angle
                 )
         elif self.signal.axes_manager.navigation_dimension == 1:
             for index in self.signal.axes_manager:
@@ -560,7 +577,7 @@ class GeometricalPhaseAnalysisTool:
                     omega.data[index] = get_strain_tensor(
                     a_matrix,
                     grad_phase_array[:, :, index, :].squeeze(),
-                    angle
+                    self.angle
                     )
         else:
             # Index the grad_phase_array in a way that support higher
@@ -568,14 +585,16 @@ class GeometricalPhaseAnalysisTool:
             raise RuntimeError('Navigation dimension higher than 1 is not '
                                'supported.')
 
-        self.e_xx = e_xx
-        self.e_yy = e_yy
-        self.theta = theta
-        self.omega = omega
+        self._e_xx = e_xx
+        self._e_yy = e_yy
+        self._theta = theta
+        self._omega = omega
 
         for name in ['e_xx', 'e_yy', 'theta', 'omega']:
             component = getattr(self, name)
-            component.original_metadata.g_vectors = self._g_matrix(angle=angle)
+            component.original_metadata.g_vectors = self._g_matrix(
+                angle=self.angle
+                )
 
     def plot_strain(self, components=None, same_figure=True, threshold=0.1,
                     save_figure=False, filename='strain', display_figure=True,
@@ -699,7 +718,8 @@ class GeometricalPhaseAnalysisTool:
 
         vector_basis = self._g_matrix(normalised=True)
         if same_figure:
-            signals = [get_components(component, mask) for component in components]
+            signals = [get_components(component, mask)
+                       for component in components]
             fig = kwargs.get('fig', plt.figure(figsize=(12, 4.8)))
             axs = hs.plot.plot_images(signals, fig=fig, **kwargs)
             add_vector_basis(vector_basis, ax=axs[-1], labels=['x', 'y'],
