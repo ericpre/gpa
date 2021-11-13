@@ -158,7 +158,7 @@ class AtomicResolutionFFT(ComplexSignal2D):
 
         """
         # Add gaussian mask
-        mask = get_mask_from_roi(self, roi, gaussian)
+        mask = get_mask_from_roi(self, roi, gaussian=gaussian)
 
         # check inplace, out, multi-dimensional. etc.
         if is_cupy_array(self.data):
